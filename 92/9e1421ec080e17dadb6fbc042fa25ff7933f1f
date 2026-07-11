@@ -1,0 +1,19 @@
+.gitignore
+  s_c9a411877835cf::t_cc8c1d9b52e350 4-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "929e1421ec080e17dadb6fbc042fa25ff7933f1f",
+  "prompts": {},
+  "sessions": {
+    "s_c9a411877835cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6600aeeb-3bab-4aaa-8877-ead1632f39cc",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
