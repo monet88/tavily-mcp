@@ -15,9 +15,17 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build": "tsc -p tsconfig.node.json && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
-    "watch": "tsc --watch",
+    "watch": "tsc -p tsconfig.node.json --watch",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.worker.json --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:worker": "vitest run --config vitest.worker.config.ts",
+    "cf:types": "wrangler types",
+    "cf:dev": "wrangler dev",
+    "cf:dry-run": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "cf:deploy": "wrangler deploy",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "prepublishOnly": "npm run build"
   },
@@ -46,14 +54,18 @@
   "author": "Tavily",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.26.0",
-    "dotenv": "^16.4.5",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "axios": "^1.6.7",
-    "yargs": "^17.7.2"
+    "dotenv": "^16.4.5",
+    "yargs": "^17.7.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.18.4",
     "@types/node": "^20.11.24",
     "@types/yargs": "^17.0.32",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.10",
+    "wrangler": "^4.110.0"
   }
 }
