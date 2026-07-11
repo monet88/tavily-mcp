@@ -10,7 +10,7 @@ startCommand:
     properties:
       tavilyApiKey:
         type: string
-        description: The API key for the Tavily MCP server.
+        description: One Tavily API key or a comma-separated pool of Tavily API keys.
   commandFunction:
     # A function that produces the CLI command to start the MCP on stdio.
     |-

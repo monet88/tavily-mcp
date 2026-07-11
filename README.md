@@ -180,6 +180,125 @@ Before you begin, ensure you have:
 npx -y tavily-mcp@latest 
 ```
 
+## API Key Pool
+
+`TAVILY_API_KEY` accepts either one key or a comma-separated pool:
+
+```bash
+export TAVILY_API_KEY="api-key-1,api-key-2,api-key-3"
+```
+
+Parsing rules:
+
+- Whitespace around each key is trimmed
+- Duplicates are removed
+- At most **32** keys
+- Whole value is at most **5 KB**
+- Each key is at most **512** bytes
+
+Runtime behavior:
+
+| Profile | Keys | Rotation |
+|---------|------|----------|
+| CLI / stdio | Optional. If unset, **keyless** mode allows `tavily_search` / `tavily_extract` only | Process-local round-robin |
+| Cloudflare Worker | **Required** (at least one key) | Strict single-environment global round-robin via Durable Object |
+
+Example local client config with a pool:
+
+```json
+{
+  "mcpServers": {
+    "tavily-mcp": {
+      "command": "npx",
+      "args": ["-y", "tavily-mcp@latest"],
+      "env": {
+        "TAVILY_API_KEY": "api-key-1,api-key-2"
+      }
+    }
+  }
+}
+```
+
+## Research Tools
+
+Research is long-running. Prefer the async pair on ChatGPT / the Worker:
+
+1. Call `tavily_research_start` → receive a `request_id`
+2. Poll `tavily_research_get` with that `request_id` until the job is terminal
+
+The CLI keeps synchronous `tavily_research` for compatibility, and also exposes the async pair.
+
+## Private ChatGPT Cloudflare Worker (no OAuth)
+
+This repo ships a private Worker MCP endpoint for ChatGPT Developer Mode. It is **not** multi-tenant OAuth.
+
+### Capability URL = bearer credential
+
+```
+https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>
+```
+
+- Anyone who holds the path token can call the MCP and consume **team Tavily quota**
+- There is **no** per-user revocation or audit trail
+- If you need multi-tenant auth, upgrade to **OAuth / Cloudflare Access**
+
+### Emergency controls
+
+1. Rotate the path token: `npx wrangler secret put MCP_PATH_TOKEN`
+2. Disable the endpoint: set `MCP_ENABLED=false` (wrangler var or secret) and redeploy
+3. Refresh the ChatGPT app connector with the new capability URL
+
+Generate a strong token (32 random bytes, base64url) without echoing it into shell history:
+
+```bash
+# bash / Git Bash
+token=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
+printf '%s' "$token" | npx wrangler secret put MCP_PATH_TOKEN
+# paste $token into the ChatGPT app URL, then clear clipboard
+```
+
+## Deploy the Cloudflare Worker
+
+### Local setup
+
+```bash
+cp .dev.vars.example .dev.vars
+# edit .dev.vars — use placeholders only in docs; real secrets stay local
+npm run cf:types
+npm run cf:dev
+npm run cf:dry-run
+```
+
+`.dev.vars` example values (never commit real secrets):
+
+```dotenv
+TAVILY_API_KEY=api-key-1,api-key-2
+MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
+MCP_ALLOWED_ORIGINS=https://chatgpt.com
+```
+
+### Production secrets and deploy
+
+```bash
+npx wrangler secret put TAVILY_API_KEY
+npx wrangler secret put MCP_PATH_TOKEN
+npm run cf:deploy
+```
+
+Do **not** put `TAVILY_API_KEY` or `MCP_PATH_TOKEN` in `wrangler.jsonc` `vars`.
+
+### Verify with MCP Inspector
+
+Point MCP Inspector at the Worker capability URL (local or deployed). Expect the Worker tool set (search, extract, map, crawl, `tavily_research_start`, `tavily_research_get`) — synchronous `tavily_research` is CLI-only.
+
+### Connect ChatGPT (Developer Mode)
+
+1. Enable **Developer Mode** in ChatGPT
+2. Create a private / custom MCP app with the capability URL
+   `https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>`
+3. Use **POST** only for MCP traffic
+4. Refresh tool metadata after each deploy or token rotation
+
 ## Default Parameters Configuration ⚙️
 
 You can set default parameter values for the `tavily-search` tool using the `DEFAULT_PARAMETERS` environment variable. This allows you to configure default search behavior without specifying these parameters in every request.
