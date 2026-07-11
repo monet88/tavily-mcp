@@ -1,0 +1,37 @@
+.dev.vars.example
+  s_68e4e9ad1d2e54::t_5d8d3ef1e8844b 4-6
+README.md
+  s_c9a411877835cf::t_67055252a39b6d 231,233,235,238,241-245,247,249,251-253,261,272,280-281,284,288,292-296
+src/config.ts
+  s_c9a411877835cf::t_afb6233de89939 148
+src/worker.ts
+  s_c9a411877835cf::t_6d678aee01cdc8 175-184
+tests/unit/config.test.ts
+  s_c9a411877835cf::t_5e022606245bb1 36-42
+tests/worker/worker.test.ts
+  s_c9a411877835cf::t_ea8a932dd04c3a 12-13,92,101,114,374-395
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "adc19ff493425c8bb6fda63b3c41661956ee6a13",
+  "prompts": {},
+  "sessions": {
+    "s_68e4e9ad1d2e54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afda21ff5801746db",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_c9a411877835cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6600aeeb-3bab-4aaa-8877-ead1632f39cc",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
