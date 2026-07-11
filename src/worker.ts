@@ -2,7 +2,9 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 import { loadConfig, type EnvMap } from "./config.js";
 import {
   CoordinatedKeyPool,
+  prepareKeyMaterial,
   type CoordinatorPort,
+  type PreparedKeyMaterial,
 } from "./key-pool.js";
 import { createMcpServer } from "./server.js";
 import { TavilyClient } from "./tavily-client.js";
@@ -19,6 +21,18 @@ export { TavilyCoordinator } from "./coordinator.js";
 
 const WORKER_VERSION = "0.2.21";
 const GLOBAL_COORDINATOR_NAME = "global";
+
+// ponytail: re-fingerprint only when secret material changes.
+let cachedKeyMaterial: PreparedKeyMaterial | null = null;
+
+async function getKeyMaterial(apiKeys: string[]): Promise<PreparedKeyMaterial> {
+  const cacheKey = JSON.stringify(apiKeys);
+  if (cachedKeyMaterial && cachedKeyMaterial.cacheKey === cacheKey) {
+    return cachedKeyMaterial;
+  }
+  cachedKeyMaterial = await prepareKeyMaterial(apiKeys);
+  return cachedKeyMaterial;
+}
 
 type CoordinatorStub = {
   allowMcpRequest(input: {
@@ -50,6 +64,7 @@ class CoordinatorResearchStore implements ResearchStore {
   put(job: {
     requestId: string;
     fingerprint: string;
+    tokenHash: string;
     createdAtMs: number;
     expiresAtMs: number;
   }): Promise<void> {
@@ -62,6 +77,7 @@ class CoordinatorResearchStore implements ResearchStore {
     return {
       requestId: row.requestId,
       fingerprint: row.fingerprint,
+      tokenHash: row.tokenHash,
       createdAtMs: row.createdAtMs,
       expiresAtMs: row.expiresAtMs,
       terminalStatus: row.terminalStatus ?? null,
@@ -172,7 +188,7 @@ export async function handleWorkerRequest(
     return textResponse(503, "Service unavailable");
   }
 
-  // Public MCP at /mcp. Optional capability token when MCP_PATH_TOKEN is set.
+  // Capability path /mcp/<token> by default. Public /mcp only with MCP_ALLOW_PUBLIC=true.
   // Never accept credentials via query string.
   const mcpPath =
     config.mcpPathToken !== undefined
@@ -231,8 +247,9 @@ export async function handleWorkerRequest(
     quarantine: input => stub.quarantine(input),
   };
 
-  const keyPool = await CoordinatedKeyPool.create(
-    config.apiKeys,
+  const material = await getKeyMaterial(config.apiKeys);
+  const keyPool = CoordinatedKeyPool.fromMaterial(
+    material,
     coordinatorPort,
     {
       quarantineMs: config.keyQuarantineSeconds * 1000,

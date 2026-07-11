@@ -149,6 +149,7 @@ describe("TavilyCoordinator", () => {
     await stub.putResearchJob({
       requestId: "req-1",
       fingerprint: "fp-a",
+      tokenHash: "th-test",
       createdAtMs: now,
       expiresAtMs: now + 86_400_000,
     });
@@ -381,6 +382,7 @@ describe("TavilyCoordinator", () => {
     const input: ResearchJobInput = {
       requestId: "req-meta",
       fingerprint: "fp-a",
+      tokenHash: "th-meta",
       createdAtMs: now,
       expiresAtMs: now + 86_400_000,
     };
@@ -390,6 +392,7 @@ describe("TavilyCoordinator", () => {
     expect(job).toEqual({
       requestId: "req-meta",
       fingerprint: "fp-a",
+      tokenHash: "th-meta",
       createdAtMs: now,
       expiresAtMs: now + 86_400_000,
       terminalStatus: null,
@@ -414,6 +417,7 @@ describe("TavilyCoordinator", () => {
     await stub.putResearchJob({
       requestId: "req-term",
       fingerprint: "fp-a",
+      tokenHash: "th-test",
       createdAtMs: created,
       expiresAtMs: expires,
     });
@@ -448,6 +452,7 @@ describe("TavilyCoordinator", () => {
     await stub.putResearchJob({
       requestId: "old",
       fingerprint: "fp-a",
+      tokenHash: "th-test",
       createdAtMs: t0,
       expiresAtMs: t0 + 1_000, // already expired relative to next put's createdAtMs
     });
@@ -456,6 +461,7 @@ describe("TavilyCoordinator", () => {
     await stub.putResearchJob({
       requestId: "new",
       fingerprint: "fp-b",
+      tokenHash: "th-test",
       createdAtMs: t0 + 5_000,
       expiresAtMs: Date.now() + 86_400_000,
     });
@@ -480,10 +486,11 @@ describe("TavilyCoordinator", () => {
     await runInDurableObject(stub, (_instance, state) => {
       for (let i = 0; i < 2000; i += 1) {
         state.storage.sql.exec(
-          `INSERT INTO research_jobs (request_id, fingerprint, created_at_ms, expires_at_ms, terminal_status)
-           VALUES (?, ?, ?, ?, NULL)`,
+          `INSERT INTO research_jobs (request_id, fingerprint, token_hash, created_at_ms, expires_at_ms, terminal_status)
+           VALUES (?, ?, ?, ?, ?, NULL)`,
           `seed-${i}`,
           "fp-a",
+          "th-seed",
           t0,
           t0 + 86_400_000,
         );
@@ -495,6 +502,7 @@ describe("TavilyCoordinator", () => {
       await stub.putResearchJob({
         requestId: "overflow",
         fingerprint: "fp-b",
+      tokenHash: "th-test",
         createdAtMs: t0 + 1,
         expiresAtMs: t0 + 86_400_000,
       });
@@ -553,4 +561,23 @@ describe("TavilyCoordinator", () => {
     expect(decision).toEqual({ allowed: false, code: "KEY_POOL_UNAVAILABLE" });
     expect(await nextIndex(stub)).toBe(0);
   });
+
+  it("stores tokenHash and returns it on getResearchJob", async () => {
+    const stub = coordinator();
+    const created = Date.now();
+    await stub.putResearchJob({
+      requestId: "req-auth",
+      fingerprint: "fp-a",
+      tokenHash: "hash-abc",
+      createdAtMs: created,
+      expiresAtMs: created + 60_000,
+    });
+    const row = await stub.getResearchJob("req-auth");
+    expect(row).toMatchObject({
+      requestId: "req-auth",
+      fingerprint: "fp-a",
+      tokenHash: "hash-abc",
+    });
+  });
+
 });

@@ -372,12 +372,13 @@ describe("Worker routes", () => {
     expect(body.result?.structuredContent?.query).toBe("hello");
   });
 
-  it("optional MCP_PATH_TOKEN still gates the path when set", async () => {
+  it("MCP_PATH_TOKEN gates the path when set (overrides public mode)", async () => {
     const token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const response = await handleWorkerRequest(mcpPost(initializeBody), {
       ...env,
       TAVILY_API_KEY: "tvly-test-key-1",
       MCP_PATH_TOKEN: token,
+      MCP_ALLOW_PUBLIC: "false",
       MCP_ENABLED: "true",
     } as unknown as Env);
     expect(response.status).toBe(404);
@@ -388,9 +389,22 @@ describe("Worker routes", () => {
         ...env,
         TAVILY_API_KEY: "tvly-test-key-1",
         MCP_PATH_TOKEN: token,
+        MCP_ALLOW_PUBLIC: "false",
         MCP_ENABLED: "true",
       } as unknown as Env,
     );
     expect(gated.status).toBe(200);
+  });
+
+  it("returns 503 when neither MCP_PATH_TOKEN nor MCP_ALLOW_PUBLIC is set", async () => {
+    const response = await handleWorkerRequest(mcpPost(initializeBody), {
+      ...env,
+      TAVILY_API_KEY: "tvly-test-key-1",
+      MCP_ENABLED: "true",
+      MCP_ALLOW_PUBLIC: "false",
+      MCP_PATH_TOKEN: undefined,
+    } as unknown as Env);
+    // loadConfig fails closed → generic 503
+    expect(response.status).toBe(503);
   });
 });

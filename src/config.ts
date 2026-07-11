@@ -7,6 +7,8 @@ export interface AppConfig {
   humanId?: string;
   defaultParameters: Record<string, unknown>;
   mcpEnabled: boolean;
+  /** When true, Worker serves public POST /mcp without MCP_PATH_TOKEN. */
+  mcpAllowPublic: boolean;
   mcpPathToken?: string;
   allowedOrigins: string[];
   mcpDailyRequestLimit: number;
@@ -77,12 +79,16 @@ function parsePositiveInteger(
   return value;
 }
 
-function parseBoolean(raw: string | undefined, fallback: boolean): boolean {
+function parseBoolean(
+  raw: string | undefined,
+  fallback: boolean,
+  name = "boolean",
+): boolean {
   if (raw === undefined || raw === "") return fallback;
   const normalized = raw.trim().toLowerCase();
   if (normalized === "true" || normalized === "1") return true;
   if (normalized === "false" || normalized === "0") return false;
-  throw new Error(`MCP_ENABLED must be a boolean (got ${JSON.stringify(raw)})`);
+  throw new Error(`${name} must be a boolean (got ${JSON.stringify(raw)})`);
 }
 
 function parseDefaultParameters(
@@ -135,6 +141,12 @@ export function loadConfig(
     throw new Error("TAVILY_API_KEY is required for the worker profile");
   }
 
+  const mcpAllowPublic = parseBoolean(
+    env.MCP_ALLOW_PUBLIC,
+    false,
+    "MCP_ALLOW_PUBLIC",
+  );
+
   let mcpPathToken: string | undefined;
   const rawPathToken = env.MCP_PATH_TOKEN?.trim();
   if (rawPathToken) {
@@ -145,7 +157,13 @@ export function loadConfig(
     }
     mcpPathToken = rawPathToken;
   }
-  // ponytail: path token optional — public POST /mcp when unset.
+
+  // Worker is fail-closed: capability path required unless public mode is explicit.
+  if (profile === "worker" && mcpPathToken === undefined && !mcpAllowPublic) {
+    throw new Error(
+      "MCP_PATH_TOKEN is required for the worker profile (or set MCP_ALLOW_PUBLIC=true)",
+    );
+  }
 
   const humanId = env.TAVILY_HUMAN_ID?.trim() || undefined;
 
@@ -155,7 +173,8 @@ export function loadConfig(
     apiKeys,
     humanId,
     defaultParameters: parseDefaultParameters(env.DEFAULT_PARAMETERS, logger),
-    mcpEnabled: parseBoolean(env.MCP_ENABLED, true),
+    mcpEnabled: parseBoolean(env.MCP_ENABLED, true, "MCP_ENABLED"),
+    mcpAllowPublic,
     mcpPathToken,
     allowedOrigins: parseAllowedOrigins(env.MCP_ALLOWED_ORIGINS),
     mcpDailyRequestLimit: parsePositiveInteger(

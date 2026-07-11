@@ -23,6 +23,8 @@ export type RateDecision =
 export type ResearchJobInput = {
   requestId: string;
   fingerprint: string;
+  /** SHA-256 hex of opaque job_token; never store the raw token. */
+  tokenHash: string;
   createdAtMs: number;
   expiresAtMs: number;
 };
@@ -30,6 +32,7 @@ export type ResearchJobInput = {
 export type ResearchJobRecord = {
   requestId: string;
   fingerprint: string;
+  tokenHash: string;
   createdAtMs: number;
   expiresAtMs: number;
   terminalStatus?: "completed" | "failed" | null;
@@ -73,11 +76,20 @@ export class TavilyCoordinator extends DurableObject {
       CREATE TABLE IF NOT EXISTS research_jobs (
         request_id TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
+        token_hash TEXT NOT NULL DEFAULT '',
         created_at_ms INTEGER NOT NULL,
         expires_at_ms INTEGER NOT NULL,
         terminal_status TEXT
       );
     `);
+    // Best-effort column add for DO instances created before job tokens.
+    try {
+      this.ctx.storage.sql.exec(
+        `ALTER TABLE research_jobs ADD COLUMN token_hash TEXT NOT NULL DEFAULT ''`,
+      );
+    } catch {
+      // column already exists
+    }
   }
 
   async allowMcpRequest(input: RequestLimitInput): Promise<RateDecision> {
@@ -194,14 +206,16 @@ export class TavilyCoordinator extends DurableObject {
     }
 
     this.ctx.storage.sql.exec(
-      `INSERT INTO research_jobs (request_id, fingerprint, created_at_ms, expires_at_ms, terminal_status)
-       VALUES (?, ?, ?, ?, NULL)
+      `INSERT INTO research_jobs (request_id, fingerprint, token_hash, created_at_ms, expires_at_ms, terminal_status)
+       VALUES (?, ?, ?, ?, ?, NULL)
        ON CONFLICT(request_id) DO UPDATE SET
          fingerprint = excluded.fingerprint,
+         token_hash = excluded.token_hash,
          created_at_ms = excluded.created_at_ms,
          expires_at_ms = excluded.expires_at_ms`,
       input.requestId,
       input.fingerprint,
+      input.tokenHash,
       input.createdAtMs,
       input.expiresAtMs,
     );
@@ -216,11 +230,12 @@ export class TavilyCoordinator extends DurableObject {
       .exec<{
         request_id: string;
         fingerprint: string;
+        token_hash: string;
         created_at_ms: number;
         expires_at_ms: number;
         terminal_status: string | null;
       }>(
-        `SELECT request_id, fingerprint, created_at_ms, expires_at_ms, terminal_status
+        `SELECT request_id, fingerprint, token_hash, created_at_ms, expires_at_ms, terminal_status
          FROM research_jobs WHERE request_id = ?`,
         requestId,
       )
@@ -229,6 +244,7 @@ export class TavilyCoordinator extends DurableObject {
     return {
       requestId: row.request_id,
       fingerprint: row.fingerprint,
+      tokenHash: row.token_hash ?? "",
       createdAtMs: row.created_at_ms,
       expiresAtMs: row.expires_at_ms,
       terminalStatus: (row.terminal_status as ResearchJobRecord["terminalStatus"]) ?? null,

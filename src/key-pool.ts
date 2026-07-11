@@ -42,6 +42,16 @@ interface KeyEntry {
   fingerprint: string;
 }
 
+/** Fingerprinted pool material shared across CoordinatedKeyPool instances. */
+export interface PreparedKeyMaterial {
+  entries: readonly KeyEntry[];
+  byFingerprint: ReadonlyMap<string, string>;
+  fingerprints: readonly string[];
+  poolVersion: string;
+  /** Stable identity for isolate-level cache (raw keys stay in isolate only). */
+  cacheKey: string;
+}
+
 // clock is accepted for tests (FakeClock); production uses now() or Date.now.
 export type LocalPoolCreateOptions = Partial<PoolOptions> & {
   clock?: { now(): number };
@@ -50,6 +60,27 @@ export type LocalPoolCreateOptions = Partial<PoolOptions> & {
 export async function fingerprintKey(key: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
   return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+
+export async function prepareKeyMaterial(keys: string[]): Promise<PreparedKeyMaterial> {
+  if (keys.length === 0) {
+    throw new Error("KEY_POOL_NOT_CONFIGURED");
+  }
+  const entries: KeyEntry[] = [];
+  const byFingerprint = new Map<string, string>();
+  for (const key of keys) {
+    const fingerprint = await fingerprintKey(key);
+    entries.push({ key, fingerprint });
+    byFingerprint.set(fingerprint, key);
+  }
+  const fingerprints = entries.map(entry => entry.fingerprint);
+  return {
+    entries,
+    byFingerprint,
+    fingerprints,
+    poolVersion: fingerprints.join("|"),
+    cacheKey: JSON.stringify(keys),
+  };
 }
 
 export class LocalKeyPool implements KeyPool {
@@ -162,25 +193,24 @@ export class CoordinatedKeyPool implements KeyPool {
     coordinator: CoordinatorPort,
     options: CoordinatedPoolCreateOptions,
   ): Promise<CoordinatedKeyPool> {
-    if (keys.length === 0) {
-      throw new Error("KEY_POOL_NOT_CONFIGURED");
-    }
-    const entries: KeyEntry[] = [];
-    const byFingerprint = new Map<string, string>();
-    for (const key of keys) {
-      const fingerprint = await fingerprintKey(key);
-      entries.push({ key, fingerprint });
-      byFingerprint.set(fingerprint, key);
-    }
-    const fingerprints = entries.map(entry => entry.fingerprint);
+    const material = await prepareKeyMaterial(keys);
+    return CoordinatedKeyPool.fromMaterial(material, coordinator, options);
+  }
+
+  /** Reuse pre-fingerprinted material (avoids re-hashing every Worker request). */
+  static fromMaterial(
+    material: PreparedKeyMaterial,
+    coordinator: CoordinatorPort,
+    options: CoordinatedPoolCreateOptions,
+  ): CoordinatedKeyPool {
     const now =
       options.now ??
       (options.clock ? () => options.clock!.now() : () => Date.now());
     return new CoordinatedKeyPool(
-      entries,
-      byFingerprint,
-      fingerprints,
-      fingerprints.join("|"),
+      material.entries,
+      material.byFingerprint,
+      material.fingerprints,
+      material.poolVersion,
       coordinator,
       now,
       options.quarantineMs ?? DEFAULT_QUARANTINE_MS,

@@ -11,7 +11,6 @@ import {
   CrawlOutputSchema,
   ExtractOutputSchema,
   MapOutputSchema,
-  ResearchStartOutputSchema,
   SearchOutputSchema,
   type CrawlOutput,
   type ExtractOutput,
@@ -291,10 +290,27 @@ const ResearchGetInputSchema = z
     request_id: z
       .string()
       .describe("The request_id returned by tavily_research_start"),
+    job_token: z
+      .string()
+      .min(1)
+      .describe("Opaque job token returned by tavily_research_start"),
   })
   .strict();
 
 export type ResearchGetInput = z.infer<typeof ResearchGetInputSchema>;
+
+// MCP start output adds opaque job_token (not from Tavily provider body).
+export const ResearchStartMcpOutputSchema = z
+  .object({
+    request_id: z.string(),
+    created_at: z.string(),
+    status: z.literal("pending"),
+    input: z.string(),
+    model: z.enum(["mini", "pro", "auto"]),
+    response_time: z.number().finite(),
+    job_token: z.string(),
+  })
+  .strict();
 
 // MCP SDK cannot convert discriminated unions into JSON Schema; use a flat object.
 export const ResearchGetMcpOutputSchema = z
@@ -382,7 +398,7 @@ export const TOOL_CATALOG = [
     description:
       "Start a comprehensive research job on a topic or question. Returns a request_id to poll with tavily_research_get. Rate limit: 20 requests per minute.",
     inputSchema: ResearchStartInputSchema,
-    outputSchema: ResearchStartOutputSchema,
+    outputSchema: ResearchStartMcpOutputSchema,
     annotations: { readOnlyHint: false, ...openWorld },
     profiles: ["stdio", "worker"] as Array<"stdio" | "worker">,
   },
@@ -427,9 +443,9 @@ export const LIST_TOOLS_DESCRIPTIONS: Record<string, string> = {
   tavily_research:
     "Performs comprehensive research on any topic or question by gathering information from multiple sources. Supports different research depths ('mini' for narrow tasks, 'pro' for broad research, 'auto' for automatic selection). Ideal for in-depth analysis, report generation, and answering complex questions requiring synthesis of multiple sources.",
   tavily_research_start:
-    "Starts an asynchronous research job and returns a request_id. Poll tavily_research_get until the job reaches a terminal status.",
+    "Starts an asynchronous research job and returns a request_id plus job_token. Poll tavily_research_get with both until the job reaches a terminal status.",
   tavily_research_get:
-    "Fetches the current status or completed report for a research job identified by request_id.",
+    "Fetches the current status or completed report for a research job. Requires request_id and job_token from tavily_research_start.",
 };
 
 // re-export input types used by handlers

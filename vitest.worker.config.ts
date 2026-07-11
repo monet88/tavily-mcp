@@ -14,6 +14,7 @@ export default defineConfig({
           MCP_REQUESTS_PER_MINUTE: "120",
           MCP_DAILY_REQUEST_LIMIT: "10000",
           MCP_ALLOWED_ORIGINS: "https://chatgpt.com,https://chat.openai.com",
+          MCP_ALLOW_PUBLIC: "true",
         },
       },
     }),

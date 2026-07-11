@@ -22,6 +22,7 @@ import type { ResearchGetInput, ResearchSyncOutput } from "./tool-catalog.js";
 export interface ResearchJobRecord {
   requestId: string;
   fingerprint: string;
+  tokenHash: string;
   createdAtMs: number;
   expiresAtMs: number;
   terminalStatus?: string | null;
@@ -31,6 +32,7 @@ export interface ResearchStore {
   put(job: {
     requestId: string;
     fingerprint: string;
+    tokenHash: string;
     createdAtMs: number;
     expiresAtMs: number;
   }): Promise<void>;
@@ -58,6 +60,7 @@ export class MemoryResearchStore implements ResearchStore {
   async put(job: {
     requestId: string;
     fingerprint: string;
+    tokenHash: string;
     createdAtMs: number;
     expiresAtMs: number;
   }): Promise<void> {
@@ -65,6 +68,7 @@ export class MemoryResearchStore implements ResearchStore {
     this.jobs.set(job.requestId, {
       requestId: job.requestId,
       fingerprint: job.fingerprint,
+      tokenHash: job.tokenHash,
       createdAtMs: job.createdAtMs,
       expiresAtMs: job.expiresAtMs,
       terminalStatus: null,
@@ -149,10 +153,6 @@ function cleanParams(params: Record<string, unknown>): Record<string, unknown> {
     cleaned[key] = value;
   }
   return cleaned;
-}
-
-function asInput<T>(value: Record<string, unknown>): T {
-  return value as unknown as T;
 }
 
 export function formatSearchResults(response: SearchOutput): string {
@@ -296,6 +296,37 @@ export function formatKeylessEnvelope(data: {
 /** Exact keyless message when crawl/map/research need a key. */
 export const KEYLESS_API_KEY_REQUIRED_MESSAGE =
   "A Tavily API key is required for this operation.";
+
+export async function hashJobToken(token: string): Promise<string> {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(token),
+  );
+  return [...new Uint8Array(digest)]
+    .map(value => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export function mintJobToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  // base64url without padding
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const enc = new TextEncoder();
+  const aa = enc.encode(a);
+  const bb = enc.encode(b);
+  let diff = 0;
+  for (let i = 0; i < aa.length; i += 1) {
+    diff |= aa[i]! ^ bb[i]!;
+  }
+  return diff === 0;
+}
 
 function mapToolError(error: unknown): HandlerFailure {
   if (
@@ -447,16 +478,23 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
       const { result, credentialFingerprint } =
         await deps.client.researchStart(params);
       const createdAtMs = now();
+      const jobToken = mintJobToken();
+      const tokenHash = await hashJobToken(jobToken);
       await deps.researchStore.put({
         requestId: result.request_id,
         fingerprint: credentialFingerprint,
+        tokenHash,
         createdAtMs,
         expiresAtMs: createdAtMs + ttlSeconds * 1000,
       });
+      const data = {
+        ...result,
+        job_token: jobToken,
+      } as ResearchStartOutput & Record<string, unknown>;
       return {
         ok: true,
-        data: result as ResearchStartOutput & Record<string, unknown>,
-        legacyText: JSON.stringify(result),
+        data,
+        legacyText: JSON.stringify(data),
       };
     } catch (error: unknown) {
       return mapToolError(error);
@@ -469,6 +507,14 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
     try {
       const job = await deps.researchStore.get(raw.request_id);
       if (!job) {
+        return {
+          ok: false,
+          code: "RESEARCH_NOT_FOUND",
+          message: "The research request was not found.",
+        };
+      }
+      const providedHash = await hashJobToken(raw.job_token);
+      if (!timingSafeEqualHex(providedHash, job.tokenHash)) {
         return {
           ok: false,
           code: "RESEARCH_NOT_FOUND",

@@ -223,33 +223,36 @@ Example local client config with a pool:
 
 Research is long-running. Prefer the async pair on ChatGPT / the Worker:
 
-1. Call `tavily_research_start` → receive a `request_id`
-2. Poll `tavily_research_get` with that `request_id` until the job is terminal
+1. Call `tavily_research_start` → receive `request_id` **and** `job_token`
+2. Poll `tavily_research_get` with **both** values until the job is terminal
+
+`job_token` is an opaque capability secret. Anyone who has only `request_id` cannot read the report. The Worker stores a hash of the token, never the raw value.
 
 The CLI keeps synchronous `tavily_research` for compatibility, and also exposes the async pair.
 
 ## ChatGPT Cloudflare Worker
 
-This repo ships a Worker MCP endpoint for ChatGPT Developer Mode. Tavily API keys stay in Worker secrets; the MCP path itself is public by default.
+This repo ships a Worker MCP endpoint for ChatGPT Developer Mode. Tavily API keys stay in Worker secrets.
+
+**Default is fail-closed:** set secret `MCP_PATH_TOKEN` (base64url, ≥32 random bytes). Public `/mcp` requires an explicit `MCP_ALLOW_PUBLIC=true` (demo only).
 
 ### Endpoint
 
 ```
-https://<your-worker>.workers.dev/mcp
+https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>
 ```
 
 - **POST** only
-- Origin allowlist defaults to `https://chatgpt.com` and `https://chat.openai.com`
+- Origin allowlist defaults to `https://chatgpt.com` and `https://chat.openai.com` (missing Origin is still allowed for some MCP clients)
 - Rate limits / kill switch: `MCP_REQUESTS_PER_MINUTE`, `MCP_DAILY_REQUEST_LIMIT`, `MCP_ENABLED=false`
-- Optional lockdown: set secret `MCP_PATH_TOKEN` (base64url, ≥32 random bytes) to require  
-  `https://<your-worker>.workers.dev/mcp/<token>` instead of public `/mcp`
+- Public mode (discouraged): `MCP_ALLOW_PUBLIC=true` serves `POST /mcp` without a path token
 
 Anyone who can reach the endpoint can consume **team Tavily quota** (keys are not exposed in responses). If you need multi-tenant auth, use **OAuth / Cloudflare Access**.
 
 ### Emergency controls
 
 1. Disable the endpoint: set `MCP_ENABLED=false` and redeploy  
-2. Optional: set `MCP_PATH_TOKEN` to re-enable capability-path locking  
+2. Rotate `MCP_PATH_TOKEN` if the capability URL leaked  
 3. Refresh the ChatGPT app connector after URL changes
 
 ## Deploy the Cloudflare Worker
@@ -269,35 +272,35 @@ npm run cf:dry-run
 ```dotenv
 TAVILY_API_KEY=api-key-1,api-key-2
 MCP_ALLOWED_ORIGINS=https://chatgpt.com
-# optional: MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
+MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
+# demo only: MCP_ALLOW_PUBLIC=true
 ```
 
 ### Production secrets and deploy
 
 ```bash
 npx wrangler secret put TAVILY_API_KEY
+npx wrangler secret put MCP_PATH_TOKEN
 npm run cf:deploy
-# optional lockdown:
-# npx wrangler secret put MCP_PATH_TOKEN
 ```
 
-Do **not** put `TAVILY_API_KEY` in `wrangler.jsonc` `vars`.
+Do **not** put `TAVILY_API_KEY` or `MCP_PATH_TOKEN` in `wrangler.jsonc` `vars`.
 
 ### Verify with MCP Inspector
 
-Point MCP Inspector at `https://<your-worker>.workers.dev/mcp`. Expect six Worker tools (search, extract, map, crawl, `tavily_research_start`, `tavily_research_get`) — synchronous `tavily_research` is CLI-only.
+Point MCP Inspector at `https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>`. Expect six Worker tools (search, extract, map, crawl, `tavily_research_start`, `tavily_research_get`) — synchronous `tavily_research` is CLI-only.
 
 ### Connect ChatGPT (Developer Mode)
 
 1. Enable **Developer Mode** in ChatGPT  
 2. Create a custom MCP app with  
-   `https://<your-worker>.workers.dev/mcp`  
+   `https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>`  
 3. Use **POST** only for MCP traffic  
 4. Refresh tool metadata after each deploy
 
-## Default Parameters Configuration ⚙️
+## Forced Parameters Configuration ⚙️
 
-You can set default parameter values for the `tavily-search` tool using the `DEFAULT_PARAMETERS` environment variable. This allows you to configure default search behavior without specifying these parameters in every request.
+`DEFAULT_PARAMETERS` is a **force override**, not a soft default: for every key present in the JSON object, the env value **wins over** the tool-call argument (legacy CLI behavior).
 
 ### Example Configuration
 

@@ -33,10 +33,28 @@ describe("loadConfig", () => {
     expect(() => loadConfig({}, "worker")).toThrow("TAVILY_API_KEY");
   });
 
-  it("allows worker without MCP_PATH_TOKEN (public /mcp)", () => {
-    const config = loadConfig({ TAVILY_API_KEY: "key-1" }, "worker");
-    expect(config.mcpPathToken).toBeUndefined();
-    expect(config.credentialMode).toBe("api-key");
+  it("requires MCP_PATH_TOKEN for worker unless MCP_ALLOW_PUBLIC=true", () => {
+    expect(() => loadConfig({ TAVILY_API_KEY: "key-1" }, "worker")).toThrow(
+      "MCP_PATH_TOKEN",
+    );
+
+    const publicConfig = loadConfig(
+      { TAVILY_API_KEY: "key-1", MCP_ALLOW_PUBLIC: "true" },
+      "worker",
+    );
+    expect(publicConfig.mcpPathToken).toBeUndefined();
+    expect(publicConfig.mcpAllowPublic).toBe(true);
+    expect(publicConfig.credentialMode).toBe("api-key");
+  });
+
+  it("accepts a valid capability token for worker", () => {
+    const token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const config = loadConfig(
+      { TAVILY_API_KEY: "key-1", MCP_PATH_TOKEN: token },
+      "worker",
+    );
+    expect(config.mcpPathToken).toBe(token);
+    expect(config.mcpAllowPublic).toBe(false);
   });
 
   it("rejects invalid capability tokens when provided", () => {
