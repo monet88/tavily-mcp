@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true
+  },
+  "include": [
+    "src/config.ts",
+    "src/key-pool.ts",
+    "src/tavily-client.ts",
+    "src/tavily-schemas.ts",
+    "src/tool-catalog.ts",
+    "src/tool-handlers.ts",
+    "src/server.ts",
+    "src/coordinator.ts",
+    "src/worker.ts",
+    "worker-configuration.d.ts"
+  ]
+}

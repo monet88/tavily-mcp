@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tavily-mcp-chatgpt",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-11",
+  "durable_objects": {
+    "bindings": [
+      { "name": "TAVILY_COORDINATOR", "class_name": "TavilyCoordinator" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["TavilyCoordinator"] }
+  ],
+  "vars": {
+    "MCP_ENABLED": "true",
+    "MCP_DAILY_REQUEST_LIMIT": "10000",
+    "MCP_REQUESTS_PER_MINUTE": "120",
+    "MCP_MAX_REQUEST_BODY_BYTES": "1048576",
+    "TAVILY_DAILY_CALL_LIMIT": "1000",
+    "RESEARCH_JOB_TTL_SECONDS": "86400",
+    "KEY_QUARANTINE_SECONDS": "600",
+    "MAX_RESEARCH_JOBS": "2000",
+    "MCP_ALLOWED_ORIGINS": "https://chatgpt.com,https://chat.openai.com"
+  }
+}
