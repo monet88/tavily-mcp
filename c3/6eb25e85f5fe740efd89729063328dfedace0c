@@ -1,0 +1,89 @@
+.dev.vars.example
+  s_68e4e9ad1d2e54::t_3cd9eae34c3629 4-8
+README.md
+  s_c9a411877835cf::t_420839543e637c 226-229,235-237,242,246,248,255,275-276,283,287,291,297,301,303
+src/config.ts
+  s_c9a411877835cf::t_f70c552fb760a9 10-11,82-86,91,144-149,160-166,176-177
+src/coordinator.ts
+  s_f7fb8c760d418b::t_8a09cb9c322be6 26-27,35,79,85-92,209-210,213,218,233,238,247
+src/key-pool.ts
+  s_3582f44597c22a::t_4c5d5fd18f56dc 45-54,65-85,196-205,210-213
+src/tool-catalog.ts
+  s_6d887134966a8e::t_2cf7e2a5059c94 293-296,302-314,401,446,448
+src/tool-handlers.ts
+  s_2e514fb981ade6::t_24f7a582a8cb44 25,35,63,71,300-330,481-482,486,490-493,496-497,516-523
+src/worker.ts
+  s_c9a411877835cf::t_6ff412f1f4fb1a 5,7,25-36,67,80,191,250-252
+tests/unit/config.test.ts
+  s_c9a411877835cf::t_ce2f2c8dea9916 36-57
+tests/worker/coordinator.test.ts
+  s_f7fb8c760d418b::t_3a50cdc752e327 152,385,395,420,455,464,489-490,493,505,564-582
+tests/worker/worker.test.ts
+  s_4d2ff7763a1888::t_0621cc6ed09731 375,381,392,398-409
+vitest.worker.config.ts
+  s_4d2ff7763a1888::t_749f0f95132516 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "c36eb25e85f5fe740efd89729063328dfedace0c",
+  "prompts": {},
+  "sessions": {
+    "s_2e514fb981ade6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7c1e3c3e69ab3eaf",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_3582f44597c22a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-acbfd9dc574999a6d",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_4d2ff7763a1888": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aee09cf43fe67ad80",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_68e4e9ad1d2e54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afda21ff5801746db",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_6d887134966a8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-abfee93e9cdd4f30a",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_c9a411877835cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6600aeeb-3bab-4aaa-8877-ead1632f39cc",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    },
+    "s_f7fb8c760d418b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8a1a3b265a63ab2d",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
