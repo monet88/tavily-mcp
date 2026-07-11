@@ -163,12 +163,19 @@ export type ResearchGetOutput = z.infer<typeof ResearchGetOutputSchema>;
 
 // --- Permissive provider-input schemas (strip unknown) ---
 
-const ProviderSourceImageSchema = z
-  .object({
-    url: z.string(),
-    description: z.string().optional(),
-  })
-  .strip();
+const ProviderSourceImageSchema = z.preprocess(
+  (value: unknown) => {
+    // Tavily may return bare URL strings; normalize to SourceImage.
+    if (typeof value === "string") return { url: value };
+    return value;
+  },
+  z
+    .object({
+      url: z.string(),
+      description: z.string().optional(),
+    })
+    .strip(),
+);
 
 const ProviderUsageSchema = z
   .object({

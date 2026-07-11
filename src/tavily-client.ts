@@ -423,8 +423,10 @@ export class TavilyClient {
     if (error instanceof TavilyToolError) {
       return error.code === "TAVILY_UPSTREAM_ERROR" && error.retryable === true;
     }
-    // Network / fetch failures (TypeError in browsers/Workers/Node undici).
-    return error instanceof TypeError || error instanceof Error;
+    // Only genuine network/fetch failures — not pool/reportAuthFailure Errors.
+    if (error instanceof TypeError) return true;
+    if (error instanceof Error && error.name === "AbortError") return true;
+    return false;
   }
 
   private async singleRequest<T>(
@@ -457,7 +459,11 @@ export class TavilyClient {
 
     if (!isOk) {
       if (response.status === 401 && lease.mode === "api-key") {
-        await this.keyPool.reportAuthFailure(lease.fingerprint);
+        try {
+          await this.keyPool.reportAuthFailure(lease.fingerprint);
+        } catch {
+          // quarantine is best-effort; still surface auth failure below
+        }
       }
       const retryAfterSeconds = parseRetryAfterSeconds(
         response.headers.get("Retry-After"),

@@ -304,6 +304,21 @@ describe("TavilyClient response normalization", () => {
     }
   });
 
+  it("search normalizes string images to SourceImage objects", async () => {
+    const body = {
+      ...searchOkBody,
+      images: ["https://img.example/b.png", { url: "https://img.example/c.png", description: "c" }],
+    };
+    const { fetchFn } = captureFetch(() => jsonResponse(body));
+    const client = await clientWithKey(fetchFn);
+    const out = await client.search({ query: "hello" });
+
+    expect(out.images).toEqual([
+      { url: "https://img.example/b.png" },
+      { url: "https://img.example/c.png", description: "c" },
+    ]);
+  });
+
   it("maps malformed 200 responses to TAVILY_UPSTREAM_ERROR", async () => {
     const { fetchFn } = captureFetch(() => jsonResponse({ not: "a search response" }));
     const client = await clientWithKey(fetchFn);
@@ -539,6 +554,43 @@ describe("TavilyClient retries", () => {
     expect(calls).toBe(1);
     expect(requests).toHaveLength(1);
     expect(sleep).not.toHaveBeenCalled();
+    expect(acquire).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry when reportAuthFailure throws on 401; still maps TAVILY_AUTH_FAILED", async () => {
+    const reportAuthFailure = vi.fn(async () => {
+      throw new Error("quarantine store failed");
+    });
+    const acquire = vi.fn(async (): Promise<CredentialLease> => ({
+      mode: "api-key",
+      key: TEST_KEY,
+      fingerprint: "fp-1",
+    }));
+    const keyPool: KeyPool = {
+      acquire,
+      resolve: async () => null,
+      reportAuthFailure,
+    };
+    let calls = 0;
+    const sleep = vi.fn(async () => undefined);
+    const { fetchFn, requests } = captureFetch(() => {
+      calls += 1;
+      return jsonResponse({ detail: "invalid key" }, 401);
+    });
+    const client = new TavilyClient({
+      keyPool,
+      fetchFn,
+      sessionId: SESSION_ID,
+      sleep,
+    });
+
+    await expect(client.search({ query: "q" })).rejects.toMatchObject({
+      code: "TAVILY_AUTH_FAILED",
+    });
+    expect(calls).toBe(1);
+    expect(requests).toHaveLength(1);
+    expect(sleep).not.toHaveBeenCalled();
+    expect(reportAuthFailure).toHaveBeenCalledTimes(1);
     expect(acquire).toHaveBeenCalledTimes(1);
   });
 });
