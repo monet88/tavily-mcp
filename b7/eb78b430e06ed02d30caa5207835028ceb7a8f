@@ -1,0 +1,31 @@
+src/index.ts
+  s_6d887134966a8e::t_ee6cad50d0a45d 5-16,20-23,26-32,35,38-45,47-48,51-55,57-60,62-63,66-69,72-80,83-85,88-91
+src/legacy-research.ts
+  s_6d887134966a8e::t_cd404620c912fa 1-359
+src/server.ts
+  s_6d887134966a8e::t_c0572e28674b23 1-154
+src/tool-catalog.ts
+  s_6d887134966a8e::t_8ff103840a888a 1-447
+src/tool-handlers.ts
+  s_6d887134966a8e::t_df0b3a4f7806c7 1-535
+tests/unit/server.test.ts
+  s_6d887134966a8e::t_5cebaffe63912b 1-80
+tests/unit/stdio-compatibility.test.ts
+  s_6d887134966a8e::t_ec270a14237934 1-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b7eb78b430e06ed02d30caa5207835028ceb7a8f",
+  "prompts": {},
+  "sessions": {
+    "s_6d887134966a8e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-abfee93e9cdd4f30a",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
