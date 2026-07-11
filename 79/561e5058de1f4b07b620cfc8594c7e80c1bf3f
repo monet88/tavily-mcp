@@ -1,0 +1,23 @@
+src/tavily-client.ts
+  s_5e20d7f1b2a80a::t_b0d81f3dae4afe 426-429,462-466
+src/tavily-schemas.ts
+  s_5e20d7f1b2a80a::t_eea4aa86af93b9 166-178
+tests/unit/tavily-client.test.ts
+  s_5e20d7f1b2a80a::t_379cc20089dda6 307-321,559-595
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "79561e5058de1f4b07b620cfc8594c7e80c1bf3f",
+  "prompts": {},
+  "sessions": {
+    "s_5e20d7f1b2a80a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a805a9809234c9943",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
