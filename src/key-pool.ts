@@ -1,0 +1,137 @@
+export type CredentialLease =
+  | { mode: "api-key"; key: string; fingerprint: string }
+  | { mode: "keyless"; fingerprint: "keyless" };
+
+export interface KeyPool {
+  acquire(): Promise<CredentialLease>;
+  resolve(fingerprint: string): Promise<CredentialLease | null>;
+  reportAuthFailure(fingerprint: string): Promise<void>;
+}
+
+export interface PoolOptions {
+  now?: () => number;
+  quarantineMs: number;
+}
+
+export interface AcquireInput {
+  poolVersion: string;
+  fingerprints: string[];
+  nowMs: number;
+  tavilyDailyCallLimit: number;
+}
+
+export type AcquireDecision =
+  | { allowed: true; fingerprint: string }
+  | { allowed: false; code: "DAILY_LIMIT_REACHED" | "KEY_POOL_UNAVAILABLE" };
+
+export interface QuarantineInput {
+  fingerprint: string;
+  untilMs: number;
+}
+
+export interface CoordinatorPort {
+  acquireForTavily(input: AcquireInput): Promise<AcquireDecision>;
+  quarantine(input: QuarantineInput): Promise<void>;
+}
+
+// Matches design default KEY_QUARANTINE_SECONDS = 600.
+const DEFAULT_QUARANTINE_MS = 600_000;
+
+interface KeyEntry {
+  key: string;
+  fingerprint: string;
+}
+
+// clock is accepted for tests (FakeClock); production uses now() or Date.now.
+export type LocalPoolCreateOptions = Partial<PoolOptions> & {
+  clock?: { now(): number };
+};
+
+export async function fingerprintKey(key: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(key));
+  return [...new Uint8Array(digest)].map(value => value.toString(16).padStart(2, "0")).join("");
+}
+
+export class LocalKeyPool implements KeyPool {
+  private nextIndex = 0;
+  private readonly quarantineUntil = new Map<string, number>();
+
+  private constructor(
+    private readonly entries: readonly KeyEntry[],
+    private readonly now: () => number,
+    private readonly quarantineMs: number,
+  ) {}
+
+  static async create(
+    keys: string[],
+    options: LocalPoolCreateOptions = {},
+  ): Promise<LocalKeyPool> {
+    const entries: KeyEntry[] = [];
+    for (const key of keys) {
+      entries.push({ key, fingerprint: await fingerprintKey(key) });
+    }
+    const now =
+      options.now ??
+      (options.clock ? () => options.clock!.now() : () => Date.now());
+    const quarantineMs = options.quarantineMs ?? DEFAULT_QUARANTINE_MS;
+    return new LocalKeyPool(entries, now, quarantineMs);
+  }
+
+  async acquire(): Promise<CredentialLease> {
+    if (this.entries.length === 0) {
+      return { mode: "keyless", fingerprint: "keyless" };
+    }
+
+    const nowMs = this.now();
+    const count = this.entries.length;
+
+    for (let offset = 0; offset < count; offset += 1) {
+      const index = (this.nextIndex + offset) % count;
+      const entry = this.entries[index]!;
+      if (this.isQuarantined(entry.fingerprint, nowMs)) continue;
+
+      // Advance only after a successful selection.
+      this.nextIndex = (index + 1) % count;
+      return {
+        mode: "api-key",
+        key: entry.key,
+        fingerprint: entry.fingerprint,
+      };
+    }
+
+    // All keys quarantined — cursor must not move.
+    throw new Error("KEY_POOL_UNAVAILABLE");
+  }
+
+  async resolve(fingerprint: string): Promise<CredentialLease | null> {
+    if (fingerprint === "keyless") {
+      return this.entries.length === 0
+        ? { mode: "keyless", fingerprint: "keyless" }
+        : null;
+    }
+    const entry = this.entries.find(item => item.fingerprint === fingerprint);
+    if (!entry) return null;
+    return {
+      mode: "api-key",
+      key: entry.key,
+      fingerprint: entry.fingerprint,
+    };
+  }
+
+  async reportAuthFailure(fingerprint: string): Promise<void> {
+    if (!this.entries.some(entry => entry.fingerprint === fingerprint)) {
+      return;
+    }
+    this.quarantineUntil.set(fingerprint, this.now() + this.quarantineMs);
+  }
+
+  private isQuarantined(fingerprint: string, nowMs: number): boolean {
+    const until = this.quarantineUntil.get(fingerprint);
+    if (until === undefined) return false;
+    if (until <= nowMs) {
+      this.quarantineUntil.delete(fingerprint);
+      return false;
+    }
+    return true;
+  }
+}
