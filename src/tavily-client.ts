@@ -42,17 +42,24 @@ export class TavilyToolError extends Error {
   readonly code: TavilyErrorCode;
   readonly retryable?: boolean;
   readonly retryAfterSeconds?: number;
+  /** Provider body when useful (e.g. keyless recoverable envelope). */
+  readonly details?: unknown;
 
   constructor(
     code: TavilyErrorCode,
     message: string,
-    options?: { retryable?: boolean; retryAfterSeconds?: number },
+    options?: {
+      retryable?: boolean;
+      retryAfterSeconds?: number;
+      details?: unknown;
+    },
   ) {
     super(message);
     this.name = "TavilyToolError";
     this.code = code;
     this.retryable = options?.retryable;
     this.retryAfterSeconds = options?.retryAfterSeconds;
+    this.details = options?.details;
   }
 }
 
@@ -145,6 +152,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Tavily recoverable keyless envelope: `{ error: { code: string, ... } }`. */
+export function isKeylessEnvelope(data: unknown): data is {
+  error: {
+    code: string;
+    message?: string;
+    retry_after_seconds?: number;
+    next_actions?: Array<Record<string, unknown>>;
+  };
+} {
+  return (
+    isRecord(data) &&
+    isRecord(data.error) &&
+    typeof data.error.code === "string"
+  );
+}
+
 function cleanBody(input: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(input)) {
@@ -171,36 +194,40 @@ function parseRetryAfterSeconds(header: string | null): number | undefined {
 function mapHttpError(
   status: number,
   retryAfterSeconds?: number,
+  details?: unknown,
 ): TavilyToolError {
   if (status === 401) {
     return new TavilyToolError(
       "TAVILY_AUTH_FAILED",
       "Tavily rejected the request because authentication failed.",
+      { details },
     );
   }
   if (status === 429) {
     return new TavilyToolError(
       "TAVILY_RATE_LIMITED",
       "Tavily rejected the request because its rate limit was reached.",
-      { retryable: true, retryAfterSeconds },
+      { retryable: true, retryAfterSeconds, details },
     );
   }
   if (status === 432 || status === 433) {
     return new TavilyToolError(
       "TAVILY_PLAN_LIMIT_REACHED",
       "Tavily rejected the request because the plan limit was reached.",
+      { details },
     );
   }
   if (status === 404) {
     return new TavilyToolError(
       "RESEARCH_NOT_FOUND",
       "The research request was not found.",
+      { details },
     );
   }
   return new TavilyToolError(
     "TAVILY_UPSTREAM_ERROR",
     "Tavily returned an upstream error.",
-    { retryable: status >= 500 },
+    { retryable: status >= 500, details },
   );
 }
 
@@ -465,16 +492,31 @@ export class TavilyClient {
           // quarantine is best-effort; still surface auth failure below
         }
       }
-      const retryAfterSeconds = parseRetryAfterSeconds(
+      const headerRetryAfter = parseRetryAfterSeconds(
         response.headers.get("Retry-After"),
       );
-      // Consume body defensively; never surface provider payload.
+
+      // Parse body for keyless envelope; only attach when it matches the shape.
+      let body: unknown;
       try {
-        await response.text();
+        const text = await response.text();
+        try {
+          body = JSON.parse(text);
+        } catch {
+          body = undefined;
+        }
       } catch {
-        // ignore body read failures
+        body = undefined;
       }
-      throw mapHttpError(response.status, retryAfterSeconds);
+
+      const envelope = isKeylessEnvelope(body) ? body : undefined;
+      const retryAfterSeconds =
+        headerRetryAfter ??
+        (typeof envelope?.error.retry_after_seconds === "number"
+          ? envelope.error.retry_after_seconds
+          : undefined);
+
+      throw mapHttpError(response.status, retryAfterSeconds, envelope);
     }
 
     let raw: unknown;

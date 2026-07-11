@@ -442,6 +442,7 @@ describe("TavilyClient provider error mapping", () => {
         expect(error).toBeInstanceOf(TavilyToolError);
         const toolError = error as TavilyToolError;
         expect(toolError.code).toBe(code);
+        expect(toolError.details).toBeUndefined();
         if (status === 429) {
           expect(toolError.retryable).toBe(true);
           expect(toolError.retryAfterSeconds).toBe(60);
@@ -450,6 +451,31 @@ describe("TavilyClient provider error mapping", () => {
       expect(reportAuthFailure).not.toHaveBeenCalled();
     },
   );
+
+  it("attaches keyless envelope details on 429 with envelope body", async () => {
+    const envelope = {
+      error: {
+        code: "rate_limited",
+        message: "Rate limited in keyless mode",
+        retry_after_seconds: 45,
+        next_actions: [{ type: "signup", url: "https://tavily.com" }],
+      },
+    };
+    const { fetchFn } = captureFetch(() => jsonResponse(envelope, 429));
+    const client = await clientWithKey(fetchFn, []);
+
+    try {
+      await client.search({ query: "q" });
+      throw new Error("expected failure");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(TavilyToolError);
+      const toolError = error as TavilyToolError;
+      expect(toolError.code).toBe("TAVILY_RATE_LIMITED");
+      expect(toolError.retryable).toBe(true);
+      expect(toolError.retryAfterSeconds).toBe(45);
+      expect(toolError.details).toEqual(envelope);
+    }
+  });
 });
 
 describe("TavilyClient retries", () => {

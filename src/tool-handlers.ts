@@ -1,11 +1,12 @@
 import type { KeyPool } from "./key-pool.js";
-import type {
-  CrawlInput,
-  ExtractInput,
-  MapInput,
-  ResearchStartInput,
-  SearchInput,
-  TavilyClient,
+import {
+  isKeylessEnvelope,
+  type CrawlInput,
+  type ExtractInput,
+  type MapInput,
+  type ResearchStartInput,
+  type SearchInput,
+  type TavilyClient,
 } from "./tavily-client.js";
 import type {
   CrawlOutput,
@@ -308,7 +309,27 @@ function mapToolError(error: unknown): HandlerFailure {
       message: string;
       retryable?: boolean;
       retryAfterSeconds?: number;
+      details?: unknown;
     };
+
+    // Stdio preserves keyless recoverable envelope text.
+    // Worker ignores legacyText and uses stable codes only.
+    // Note: MCP outputSchema requires isError when structuredContent is absent.
+    if (isKeylessEnvelope(toolError.details)) {
+      const envelopeRetry =
+        typeof toolError.details.error.retry_after_seconds === "number"
+          ? toolError.details.error.retry_after_seconds
+          : undefined;
+      return {
+        ok: false,
+        code: toolError.code,
+        message: toolError.message,
+        retryable: toolError.retryable,
+        retryAfterSeconds: toolError.retryAfterSeconds ?? envelopeRetry,
+        legacyText: formatKeylessEnvelope(toolError.details),
+      };
+    }
+
     const legacyText =
       toolError.code === "KEY_POOL_NOT_CONFIGURED"
         ? KEYLESS_API_KEY_REQUIRED_MESSAGE
@@ -513,6 +534,17 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
             error: KEYLESS_API_KEY_REQUIRED_MESSAGE,
           }),
         };
+      }
+      // Preserve keyless envelope legacyText when present.
+      if (mapped.legacyText !== undefined && mapped.code === "TAVILY_RATE_LIMITED") {
+        return mapped;
+      }
+      // Also preserve any already-formatted keyless envelope text.
+      if (
+        mapped.legacyText !== undefined &&
+        mapped.legacyText.includes("Continuation options:")
+      ) {
+        return mapped;
       }
       return {
         ...mapped,

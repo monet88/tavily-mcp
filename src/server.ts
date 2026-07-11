@@ -70,6 +70,7 @@ export function errorResult(
       ? error.legacyText
       : JSON.stringify(payload);
 
+  // MCP tools with outputSchema require isError when structuredContent is absent.
   return {
     isError: true,
     content: [{ type: "text" as const, text }],

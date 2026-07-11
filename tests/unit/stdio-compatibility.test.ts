@@ -1,10 +1,16 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it, vi } from "vitest";
+import { LocalKeyPool } from "../../src/key-pool.js";
 import { createMcpServer } from "../../src/server.js";
-import { TavilyToolError, type TavilyClient } from "../../src/tavily-client.js";
+import {
+  TavilyClient,
+  TavilyToolError,
+  type TavilyClient as TavilyClientType,
+} from "../../src/tavily-client.js";
 import {
   formatCrawlResults,
+  formatExtractResults,
   formatKeylessEnvelope,
   formatMapResults,
   formatResearchResults,
@@ -35,6 +41,24 @@ const searchFixture = {
   usage: { credits: 1 },
 };
 
+const extractFixture = {
+  results: [
+    {
+      url: "https://example.com/a",
+      raw_content: "body a",
+      favicon: "https://example.com/a.ico",
+    },
+    {
+      url: "https://example.com/b",
+      raw_content: "body b",
+    },
+  ],
+  failed_results: [{ url: "https://bad.example", error: "timeout" }],
+  response_time: 0.5,
+  request_id: "req-extract",
+  usage: { credits: 1 },
+};
+
 const crawlFixture = {
   base_url: "https://example.com",
   results: [
@@ -55,6 +79,41 @@ const mapFixture = {
   request_id: "req-map",
 };
 
+const keylessEnvelope = {
+  error: {
+    code: "rate_limited",
+    message: "Rate limited in keyless mode",
+    retry_after_seconds: 30,
+    next_actions: [
+      { type: "signup", url: "https://tavily.com" },
+      {
+        type: "bonus_credits",
+        eligible: true,
+        credits_on_completion: 10,
+        endpoint: "https://api.tavily.com/bonus",
+        questions: ["Q1", "Q2"],
+      },
+      {
+        type: "agentic_payment",
+        scheme: "x402",
+        details: "pay here",
+      },
+    ],
+  },
+};
+
+const keylessEnvelopeText = [
+  "Rate limited in keyless mode",
+  "Retry after: 30s",
+  "",
+  "Continuation options:",
+  "- Sign up for a Tavily API key: https://tavily.com",
+  "- Earn 10 bonus credits by POSTing answers to https://api.tavily.com/bonus",
+  "    1. Q1",
+  "    2. Q2",
+  "- Agentic payment (x402): pay here",
+].join("\n");
+
 describe("legacy golden formatters", () => {
   it("formats search results with answer, details, and images", () => {
     expect(formatSearchResults(searchFixture)).toBe(
@@ -74,6 +133,26 @@ describe("legacy golden formatters", () => {
         "   Description: alpha",
         "",
         "[2] URL: https://img.example/b.png",
+      ].join("\n"),
+    );
+  });
+
+  it("formats extract results with Title/URL/Content/Raw Content/Favicon", () => {
+    // Formatter does not render failed_results; lock multi-result headings only.
+    expect(formatExtractResults(extractFixture)).toBe(
+      [
+        "Detailed Results:",
+        "",
+        "Title: https://example.com/a",
+        "URL: https://example.com/a",
+        "Content: body a",
+        "Raw Content: body a",
+        "Favicon: https://example.com/a.ico",
+        "",
+        "Title: https://example.com/b",
+        "URL: https://example.com/b",
+        "Content: body b",
+        "Raw Content: body b",
       ].join("\n"),
     );
   });
@@ -119,41 +198,7 @@ describe("legacy golden formatters", () => {
   });
 
   it("formats keyless recoverable envelopes", () => {
-    expect(
-      formatKeylessEnvelope({
-        error: {
-          message: "Rate limited in keyless mode",
-          retry_after_seconds: 30,
-          next_actions: [
-            { type: "signup", url: "https://tavily.com" },
-            {
-              type: "bonus_credits",
-              eligible: true,
-              credits_on_completion: 10,
-              endpoint: "https://api.tavily.com/bonus",
-              questions: ["Q1", "Q2"],
-            },
-            {
-              type: "agentic_payment",
-              scheme: "x402",
-              details: "pay here",
-            },
-          ],
-        },
-      }),
-    ).toBe(
-      [
-        "Rate limited in keyless mode",
-        "Retry after: 30s",
-        "",
-        "Continuation options:",
-        "- Sign up for a Tavily API key: https://tavily.com",
-        "- Earn 10 bonus credits by POSTing answers to https://api.tavily.com/bonus",
-        "    1. Q1",
-        "    2. Q2",
-        "- Agentic payment (x402): pay here",
-      ].join("\n"),
-    );
+    expect(formatKeylessEnvelope(keylessEnvelope)).toBe(keylessEnvelopeText);
   });
 });
 
@@ -166,7 +211,7 @@ describe("stdio structuredContent + legacy text", () => {
       map: vi.fn(),
       researchStart: vi.fn(),
       researchGet: vi.fn(),
-    } as unknown as TavilyClient;
+    } as unknown as TavilyClientType;
 
     const server = createMcpServer("stdio", {
       client,
@@ -209,7 +254,7 @@ describe("stdio structuredContent + legacy text", () => {
       map: vi.fn(),
       researchStart: vi.fn(),
       researchGet: vi.fn(),
-    } as unknown as TavilyClient;
+    } as unknown as TavilyClientType;
 
     const server = createMcpServer("stdio", {
       client,
@@ -239,6 +284,54 @@ describe("stdio structuredContent + legacy text", () => {
     await server.close();
   });
 
+  it("returns keyless envelope text on stdio search 429", async () => {
+    const fetchFn: typeof fetch = async () =>
+      new Response(JSON.stringify(keylessEnvelope), {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          "Retry-After": "30",
+        },
+      });
+
+    const keyPool = await LocalKeyPool.create([]);
+    const client = new TavilyClient({
+      keyPool,
+      fetchFn,
+      sessionId: "session-keyless-envelope",
+      sleep: async () => undefined,
+    });
+
+    const server = createMcpServer("stdio", {
+      client,
+      researchStore: new MemoryResearchStore({ ttlSeconds: 60 }),
+      credentialMode: "keyless",
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test", version: "1" });
+    await server.connect(serverTransport);
+    await mcpClient.connect(clientTransport);
+
+    const result = await mcpClient.callTool({
+      name: "tavily_search",
+      arguments: { query: "hello" },
+    });
+
+    // MCP outputSchema forces isError when structuredContent is absent;
+    // golden text still matches legacy formatKeylessEnvelope.
+    expect(result.isError).toBe(true);
+    expect(result.content).toEqual([
+      {
+        type: "text",
+        text: keylessEnvelopeText,
+      },
+    ]);
+
+    await mcpClient.close();
+    await server.close();
+  });
+
   it("returns stable JSON errors for the worker profile", async () => {
     const client = {
       search: vi.fn(),
@@ -252,7 +345,7 @@ describe("stdio structuredContent + legacy text", () => {
       map: vi.fn(),
       researchStart: vi.fn(),
       researchGet: vi.fn(),
-    } as unknown as TavilyClient;
+    } as unknown as TavilyClientType;
 
     const server = createMcpServer("worker", {
       client,
@@ -281,6 +374,59 @@ describe("stdio structuredContent + legacy text", () => {
         }),
       },
     ]);
+
+    await mcpClient.close();
+    await server.close();
+  });
+
+  it("worker keeps stable TAVILY_RATE_LIMITED without keyless next_actions", async () => {
+    const fetchFn: typeof fetch = async () =>
+      new Response(JSON.stringify(keylessEnvelope), {
+        status: 429,
+        headers: {
+          "content-type": "application/json",
+          "Retry-After": "30",
+        },
+      });
+
+    const keyPool = await LocalKeyPool.create([]);
+    const client = new TavilyClient({
+      keyPool,
+      fetchFn,
+      sessionId: "session-worker-envelope",
+      sleep: async () => undefined,
+    });
+
+    const server = createMcpServer("worker", {
+      client,
+      researchStore: new MemoryResearchStore({ ttlSeconds: 60 }),
+      credentialMode: "keyless",
+    });
+    const [clientTransport, serverTransport] =
+      InMemoryTransport.createLinkedPair();
+    const mcpClient = new Client({ name: "test", version: "1" });
+    await server.connect(serverTransport);
+    await mcpClient.connect(clientTransport);
+
+    const result = await mcpClient.callTool({
+      name: "tavily_search",
+      arguments: { query: "hello" },
+    });
+
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]
+      ?.text;
+    expect(JSON.parse(text!)).toEqual({
+      error: {
+        code: "TAVILY_RATE_LIMITED",
+        message:
+          "Tavily rejected the request because its rate limit was reached.",
+        retryable: true,
+        retryAfterSeconds: 30,
+      },
+    });
+    expect(text).not.toContain("next_actions");
+    expect(text).not.toContain("Continuation options");
 
     await mcpClient.close();
     await server.close();
