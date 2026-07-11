@@ -163,6 +163,12 @@ export type ResearchGetOutput = z.infer<typeof ResearchGetOutputSchema>;
 
 // --- Permissive provider-input schemas (strip unknown) ---
 
+// Tavily often returns JSON null for omitted optionals; Zod optional() rejects null.
+const NullishString = z.preprocess(
+  (value: unknown) => (value === null ? undefined : value),
+  z.string().optional(),
+);
+
 const ProviderSourceImageSchema = z.preprocess(
   (value: unknown) => {
     // Tavily may return bare URL strings; normalize to SourceImage.
@@ -189,16 +195,16 @@ const ProviderSearchResultSchema = z
     url: z.string(),
     content: z.string(),
     score: z.number(),
-    published_date: z.string().optional(),
-    raw_content: z.string().optional(),
-    favicon: z.string().optional(),
+    published_date: NullishString,
+    raw_content: NullishString,
+    favicon: NullishString,
   })
   .strip();
 
 export const ProviderSearchResponseSchema = z
   .object({
     query: z.string(),
-    answer: z.string().optional(),
+    answer: NullishString,
     images: z.array(ProviderSourceImageSchema).optional(),
     results: z.array(ProviderSearchResultSchema),
     response_time: FiniteNumber.optional(),
@@ -212,7 +218,7 @@ const ProviderExtractResultSchema = z
     url: z.string(),
     raw_content: z.string(),
     images: z.array(z.string()).optional(),
-    favicon: z.string().optional(),
+    favicon: NullishString,
   })
   .strip();
 
@@ -237,7 +243,7 @@ const ProviderCrawlResultSchema = z
   .object({
     url: z.string(),
     raw_content: z.string(),
-    favicon: z.string().optional(),
+    favicon: NullishString,
   })
   .strip();
 
@@ -276,7 +282,7 @@ const ProviderResearchSourceSchema = z
   .object({
     title: z.string(),
     url: z.string(),
-    favicon: z.string().optional(),
+    favicon: NullishString,
   })
   .strip();
 

@@ -319,6 +319,41 @@ describe("TavilyClient response normalization", () => {
     ]);
   });
 
+  it("search accepts provider JSON null for optional fields", async () => {
+    // Live Tavily search often returns answer/raw_content/follow_up as null.
+    const body = {
+      query: "Cloudflare Workers Durable Objects overview",
+      follow_up_questions: null,
+      answer: null,
+      images: [],
+      results: [
+        {
+          url: "https://example.com/a",
+          title: "A",
+          content: "c",
+          score: 0.5,
+          raw_content: null,
+        },
+      ],
+      response_time: 0.4,
+      request_id: "req-nulls",
+    };
+    const { fetchFn } = captureFetch(() => jsonResponse(body));
+    const client = await clientWithKey(fetchFn);
+    const out = await client.search({ query: "Cloudflare Workers Durable Objects overview" });
+
+    expect(out.query).toBe("Cloudflare Workers Durable Objects overview");
+    expect(out.answer).toBeUndefined();
+    expect(out.results).toHaveLength(1);
+    expect(out.results[0]).toMatchObject({
+      title: "A",
+      url: "https://example.com/a",
+      content: "c",
+      score: 0.5,
+    });
+    expect(out.results[0]?.raw_content).toBeUndefined();
+  });
+
   it("maps malformed 200 responses to TAVILY_UPSTREAM_ERROR", async () => {
     const { fetchFn } = captureFetch(() => jsonResponse({ not: "a search response" }));
     const client = await clientWithKey(fetchFn);
