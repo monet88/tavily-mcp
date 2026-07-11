@@ -90,6 +90,9 @@ export class TavilyCoordinator extends DurableObject {
     }
 
     return this.ctx.storage.transactionSync(() => {
+      // ponytail: MCP-only traffic never arms research alarms; prune here.
+      this.sweepStaleCounters(input.nowMs);
+
       const dayKey = this.counterKey("mcp_day", utcDayBucket(input.nowMs));
       const minuteKey = this.counterKey("mcp_minute", utcMinuteBucket(input.nowMs));
       const dayCount = this.getCounter(dayKey);
@@ -124,6 +127,9 @@ export class TavilyCoordinator extends DurableObject {
     }
 
     return this.ctx.storage.transactionSync(() => {
+      // ponytail: same Free-plan bound as allowMcp — no research job required.
+      this.sweepStaleCounters(input.nowMs);
+
       const dayKey = this.counterKey("tavily_day", utcDayBucket(input.nowMs));
       const dayCount = this.getCounter(dayKey);
       if (dayCount >= input.tavilyDailyCallLimit) {
@@ -133,7 +139,10 @@ export class TavilyCoordinator extends DurableObject {
       const storedVersion = this.getState(STATE_POOL_VERSION);
       let nextIndex = this.getStateNumber(STATE_NEXT_INDEX, 0);
       if (storedVersion !== input.poolVersion) {
+        // Persist BOTH version and cursor reset before scan so a failed
+        // acquire (all quarantined) still starts at index 0 next time.
         this.setState(STATE_POOL_VERSION, input.poolVersion);
+        this.setState(STATE_NEXT_INDEX, "0");
         nextIndex = 0;
         // Drop quarantines for fingerprints no longer in the pool.
         this.pruneQuarantines(new Set(input.fingerprints));

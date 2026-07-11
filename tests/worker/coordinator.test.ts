@@ -72,6 +72,15 @@ async function researchRows(stub: CoordinatorStub): Promise<ResearchJobRecord[]>
   });
 }
 
+async function counterBuckets(stub: CoordinatorStub): Promise<string[]> {
+  return runInDurableObject(stub, (_instance, state) => {
+    return state.storage.sql
+      .exec<{ bucket: string }>("SELECT bucket FROM counters ORDER BY bucket")
+      .toArray()
+      .map(row => row.bucket);
+  });
+}
+
 describe("TavilyCoordinator", () => {
   it("rotates leases a → b → c → a across concurrent RPC callers", async () => {
     const stub = coordinator();
@@ -172,6 +181,48 @@ describe("TavilyCoordinator", () => {
     expect(await nextIndex(stub)).toBe(1);
   });
 
+  it("persists nextIndex=0 on poolVersion change even when first acquire fails", async () => {
+    const stub = coordinator();
+    const t0 = Date.UTC(2026, 6, 11, 12, 0, 0);
+    const v1 = acquireInput(["fp-a", "fp-b", "fp-c"], {
+      poolVersion: "v1",
+      nowMs: t0,
+    });
+
+    // Advance cursor mid-pool on v1: a then b -> nextIndex=2.
+    expect(await stub.acquireForTavily(v1)).toEqual({
+      allowed: true,
+      fingerprint: "fp-a",
+    });
+    expect(await stub.acquireForTavily(v1)).toEqual({
+      allowed: true,
+      fingerprint: "fp-b",
+    });
+    expect(await nextIndex(stub)).toBe(2);
+
+    // Switch to v2 with every key quarantined -> KEY_POOL_UNAVAILABLE.
+    const v2fps = ["fp-x", "fp-y", "fp-z"];
+    for (const fp of v2fps) {
+      await stub.quarantine({ fingerprint: fp, untilMs: t0 + 60_000 });
+    }
+    const denied = await stub.acquireForTavily(
+      acquireInput(v2fps, { poolVersion: "v2", nowMs: t0 + 1_000 }),
+    );
+    expect(denied).toEqual({ allowed: false, code: "KEY_POOL_UNAVAILABLE" });
+    // Cursor reset must have been persisted despite the failed scan.
+    expect(await nextIndex(stub)).toBe(0);
+
+    // Clear quarantines and re-acquire: must start at index 0 (x), not z.
+    await runInDurableObject(stub, (_instance, state) => {
+      state.storage.sql.exec("DELETE FROM quarantines");
+    });
+    const next = await stub.acquireForTavily(
+      acquireInput(v2fps, { poolVersion: "v2", nowMs: t0 + 2_000 }),
+    );
+    expect(next).toEqual({ allowed: true, fingerprint: "fp-x" });
+    expect(await nextIndex(stub)).toBe(1);
+  });
+
   it("skips quarantined keys and restores them after untilMs", async () => {
     const stub = coordinator();
     const fingerprints = ["fp-a", "fp-b"];
@@ -261,6 +312,41 @@ describe("TavilyCoordinator", () => {
       expect(limited.retryAfterSeconds).toBeGreaterThan(0);
       expect(limited.retryAfterSeconds).toBeLessThanOrEqual(60);
     }
+  });
+
+  it("prunes stale minute counter buckets on MCP traffic without research jobs", async () => {
+    const stub = coordinator();
+    // No research jobs at all — alarm path never arms.
+    const m0 = Date.UTC(2026, 6, 11, 12, 0, 0);
+    const m1 = Date.UTC(2026, 6, 11, 12, 1, 0);
+    const m2 = Date.UTC(2026, 6, 11, 12, 2, 0);
+    const later = Date.UTC(2026, 6, 11, 15, 0, 0);
+
+    for (const nowMs of [m0, m1, m2]) {
+      expect(
+        await stub.allowMcpRequest(
+          rateInput({ nowMs, mcpDailyRequestLimit: 100, mcpRequestsPerMinute: 10 }),
+        ),
+      ).toEqual({ allowed: true });
+    }
+
+    const mid = await counterBuckets(stub);
+    // After m2 request, only current day + current minute should remain.
+    expect(mid.some(b => b.startsWith("mcp_minute:2026-07-11T12:00"))).toBe(false);
+    expect(mid.some(b => b.startsWith("mcp_minute:2026-07-11T12:01"))).toBe(false);
+    expect(mid.some(b => b.startsWith("mcp_minute:2026-07-11T12:02"))).toBe(true);
+
+    // Far-future request must drop the 12:02 bucket too.
+    expect(
+      await stub.allowMcpRequest(
+        rateInput({ nowMs: later, mcpDailyRequestLimit: 100, mcpRequestsPerMinute: 10 }),
+      ),
+    ).toEqual({ allowed: true });
+
+    const after = await counterBuckets(stub);
+    expect(after.some(b => b.startsWith("mcp_minute:2026-07-11T12:"))).toBe(false);
+    expect(after.some(b => b.startsWith("mcp_minute:2026-07-11T15:00"))).toBe(true);
+    expect(after.some(b => b === "mcp_day:2026-07-11")).toBe(true);
   });
 
   it("enforces UTC daily Tavily call counters without advancing cursor on reject", async () => {
