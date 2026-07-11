@@ -1,3 +1,11 @@
 node_modules/
 build/
 .env*
+
+# local deploy artifacts
+.dev.vars
+.mcp-path-token.tmp
+.capability-url.tmp
+.tavily-key.tmp
+.smoke/
+.wrangler/
