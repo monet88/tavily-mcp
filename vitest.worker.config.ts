@@ -1,10 +1,6 @@
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
-// Fixed 32-byte base64url token for Worker route tests (not a real secret).
-const TEST_PATH_TOKEN =
-  "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-
 export default defineConfig({
   plugins: [
     cloudflareTest({
@@ -13,7 +9,6 @@ export default defineConfig({
       miniflare: {
         bindings: {
           TAVILY_API_KEY: "tvly-test-key-1,tvly-test-key-2",
-          MCP_PATH_TOKEN: TEST_PATH_TOKEN,
           MCP_ENABLED: "true",
           MCP_MAX_REQUEST_BODY_BYTES: "1048576",
           MCP_REQUESTS_PER_MINUTE: "120",

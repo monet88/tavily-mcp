@@ -172,8 +172,16 @@ export async function handleWorkerRequest(
     return textResponse(503, "Service unavailable");
   }
 
-  // Capability path only — never accept token via query string.
-  if (url.search || url.pathname !== `/mcp/${config.mcpPathToken}`) {
+  // Public MCP at /mcp. Optional capability token when MCP_PATH_TOKEN is set.
+  // Never accept credentials via query string.
+  const mcpPath =
+    config.mcpPathToken !== undefined
+      ? `/mcp/${config.mcpPathToken}`
+      : "/mcp";
+  const pathOk =
+    url.pathname === mcpPath ||
+    (mcpPath === "/mcp" && (url.pathname === "/mcp" || url.pathname === "/mcp/"));
+  if (url.search || !pathOk) {
     return textResponse(404, "Not found");
   }
 

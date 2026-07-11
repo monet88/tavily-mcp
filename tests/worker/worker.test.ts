@@ -9,9 +9,8 @@ import { fingerprintKey } from "../../src/key-pool.js";
 const workerFetch = (input: RequestInfo | URL, init?: RequestInit) =>
   exports.default.fetch(input, init);
 
-// Must match vitest.worker.config.ts miniflare binding.
-const PATH_TOKEN = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-const MCP_URL = `https://example.com/mcp/${PATH_TOKEN}`;
+// Public MCP path (no capability token by default).
+const MCP_URL = "https://example.com/mcp";
 
 const WORKER_TOOL_NAMES = [
   "tavily_search",
@@ -87,11 +86,10 @@ describe("Worker routes", () => {
     expect(body).toEqual({ status: "ok", version: "0.2.21" });
     const text = JSON.stringify(body);
     expect(text).not.toContain("tvly-");
-    expect(text).not.toContain(PATH_TOKEN);
     expect(text).not.toContain("TAVILY");
   });
 
-  it("returns 404 for wrong capability paths and query-string tokens", async () => {
+  it("returns 404 for non-mcp paths and query strings", async () => {
     const wrongPath = await workerFetch("https://example.com/mcp/wrong-token", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -100,7 +98,7 @@ describe("Worker routes", () => {
     expect(wrongPath.status).toBe(404);
 
     const queryToken = await workerFetch(
-      `https://example.com/mcp/${PATH_TOKEN}?token=leak`,
+      "https://example.com/mcp?token=leak",
       {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -113,7 +111,7 @@ describe("Worker routes", () => {
     expect(root.status).toBe(404);
   });
 
-  it("returns 503 without configuration details when keys or token are missing", async () => {
+  it("returns 503 without configuration details when keys are missing", async () => {
     const bareEnv = {
       TAVILY_COORDINATOR: env.TAVILY_COORDINATOR,
     } as unknown as Env;
@@ -191,7 +189,6 @@ describe("Worker routes", () => {
       ...env,
       MCP_ENABLED: "false",
       TAVILY_API_KEY: "tvly-test-key-1,tvly-test-key-2",
-      MCP_PATH_TOKEN: PATH_TOKEN,
     } as unknown as Env;
     const response = await handleWorkerRequest(
       mcpPost(initializeBody),
@@ -241,7 +238,6 @@ describe("Worker routes", () => {
     const dayLimited = await handleWorkerRequest(mcpPost(initializeBody), {
       ...env,
       TAVILY_API_KEY: "tvly-test-key-1",
-      MCP_PATH_TOKEN: PATH_TOKEN,
       MCP_ENABLED: "true",
       MCP_DAILY_REQUEST_LIMIT: "1",
       MCP_REQUESTS_PER_MINUTE: "10000",
@@ -374,5 +370,27 @@ describe("Worker routes", () => {
     };
     expect(body.result?.isError).not.toBe(true);
     expect(body.result?.structuredContent?.query).toBe("hello");
+  });
+
+  it("optional MCP_PATH_TOKEN still gates the path when set", async () => {
+    const token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const response = await handleWorkerRequest(mcpPost(initializeBody), {
+      ...env,
+      TAVILY_API_KEY: "tvly-test-key-1",
+      MCP_PATH_TOKEN: token,
+      MCP_ENABLED: "true",
+    } as unknown as Env);
+    expect(response.status).toBe(404);
+
+    const gated = await handleWorkerRequest(
+      mcpPost(initializeBody, { url: `https://example.com/mcp/${token}` }),
+      {
+        ...env,
+        TAVILY_API_KEY: "tvly-test-key-1",
+        MCP_PATH_TOKEN: token,
+        MCP_ENABLED: "true",
+      } as unknown as Env,
+    );
+    expect(gated.status).toBe(200);
   });
 });

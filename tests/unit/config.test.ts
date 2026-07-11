@@ -33,7 +33,13 @@ describe("loadConfig", () => {
     expect(() => loadConfig({}, "worker")).toThrow("TAVILY_API_KEY");
   });
 
-  it("requires a base64url capability token representing at least 32 random bytes", () => {
+  it("allows worker without MCP_PATH_TOKEN (public /mcp)", () => {
+    const config = loadConfig({ TAVILY_API_KEY: "key-1" }, "worker");
+    expect(config.mcpPathToken).toBeUndefined();
+    expect(config.credentialMode).toBe("api-key");
+  });
+
+  it("rejects invalid capability tokens when provided", () => {
     expect(() => loadConfig({
       TAVILY_API_KEY: "key-1",
       MCP_PATH_TOKEN: "too-short",

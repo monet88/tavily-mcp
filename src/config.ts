@@ -144,9 +144,8 @@ export function loadConfig(
       );
     }
     mcpPathToken = rawPathToken;
-  } else if (profile === "worker") {
-    throw new Error("MCP_PATH_TOKEN is required for the worker profile");
   }
+  // ponytail: path token optional — public POST /mcp when unset.
 
   const humanId = env.TAVILY_HUMAN_ID?.trim() || undefined;
 

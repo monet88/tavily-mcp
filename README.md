@@ -228,34 +228,29 @@ Research is long-running. Prefer the async pair on ChatGPT / the Worker:
 
 The CLI keeps synchronous `tavily_research` for compatibility, and also exposes the async pair.
 
-## Private ChatGPT Cloudflare Worker (no OAuth)
+## ChatGPT Cloudflare Worker
 
-This repo ships a private Worker MCP endpoint for ChatGPT Developer Mode. It is **not** multi-tenant OAuth.
+This repo ships a Worker MCP endpoint for ChatGPT Developer Mode. Tavily API keys stay in Worker secrets; the MCP path itself is public by default.
 
-### Capability URL = bearer credential
+### Endpoint
 
 ```
-https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>
+https://<your-worker>.workers.dev/mcp
 ```
 
-- Anyone who holds the path token can call the MCP and consume **team Tavily quota**
-- There is **no** per-user revocation or audit trail
-- If you need multi-tenant auth, upgrade to **OAuth / Cloudflare Access**
+- **POST** only
+- Origin allowlist defaults to `https://chatgpt.com` and `https://chat.openai.com`
+- Rate limits / kill switch: `MCP_REQUESTS_PER_MINUTE`, `MCP_DAILY_REQUEST_LIMIT`, `MCP_ENABLED=false`
+- Optional lockdown: set secret `MCP_PATH_TOKEN` (base64url, ≥32 random bytes) to require  
+  `https://<your-worker>.workers.dev/mcp/<token>` instead of public `/mcp`
+
+Anyone who can reach the endpoint can consume **team Tavily quota** (keys are not exposed in responses). If you need multi-tenant auth, use **OAuth / Cloudflare Access**.
 
 ### Emergency controls
 
-1. Rotate the path token: `npx wrangler secret put MCP_PATH_TOKEN`
-2. Disable the endpoint: set `MCP_ENABLED=false` (wrangler var or secret) and redeploy
-3. Refresh the ChatGPT app connector with the new capability URL
-
-Generate a strong token (32 random bytes, base64url) without echoing it into shell history:
-
-```bash
-# bash / Git Bash
-token=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
-printf '%s' "$token" | npx wrangler secret put MCP_PATH_TOKEN
-# paste $token into the ChatGPT app URL, then clear clipboard
-```
+1. Disable the endpoint: set `MCP_ENABLED=false` and redeploy  
+2. Optional: set `MCP_PATH_TOKEN` to re-enable capability-path locking  
+3. Refresh the ChatGPT app connector after URL changes
 
 ## Deploy the Cloudflare Worker
 
@@ -263,7 +258,7 @@ printf '%s' "$token" | npx wrangler secret put MCP_PATH_TOKEN
 
 ```bash
 cp .dev.vars.example .dev.vars
-# edit .dev.vars — use placeholders only in docs; real secrets stay local
+# edit .dev.vars — real secrets stay local
 npm run cf:types
 npm run cf:dev
 npm run cf:dry-run
@@ -273,31 +268,32 @@ npm run cf:dry-run
 
 ```dotenv
 TAVILY_API_KEY=api-key-1,api-key-2
-MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
 MCP_ALLOWED_ORIGINS=https://chatgpt.com
+# optional: MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
 ```
 
 ### Production secrets and deploy
 
 ```bash
 npx wrangler secret put TAVILY_API_KEY
-npx wrangler secret put MCP_PATH_TOKEN
 npm run cf:deploy
+# optional lockdown:
+# npx wrangler secret put MCP_PATH_TOKEN
 ```
 
-Do **not** put `TAVILY_API_KEY` or `MCP_PATH_TOKEN` in `wrangler.jsonc` `vars`.
+Do **not** put `TAVILY_API_KEY` in `wrangler.jsonc` `vars`.
 
 ### Verify with MCP Inspector
 
-Point MCP Inspector at the Worker capability URL (local or deployed). Expect the Worker tool set (search, extract, map, crawl, `tavily_research_start`, `tavily_research_get`) — synchronous `tavily_research` is CLI-only.
+Point MCP Inspector at `https://<your-worker>.workers.dev/mcp`. Expect six Worker tools (search, extract, map, crawl, `tavily_research_start`, `tavily_research_get`) — synchronous `tavily_research` is CLI-only.
 
 ### Connect ChatGPT (Developer Mode)
 
-1. Enable **Developer Mode** in ChatGPT
-2. Create a private / custom MCP app with the capability URL
-   `https://<your-worker>.workers.dev/mcp/<MCP_PATH_TOKEN>`
-3. Use **POST** only for MCP traffic
-4. Refresh tool metadata after each deploy or token rotation
+1. Enable **Developer Mode** in ChatGPT  
+2. Create a custom MCP app with  
+   `https://<your-worker>.workers.dev/mcp`  
+3. Use **POST** only for MCP traffic  
+4. Refresh tool metadata after each deploy
 
 ## Default Parameters Configuration ⚙️
 

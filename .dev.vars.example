@@ -1,6 +1,8 @@
 TAVILY_API_KEY=api-key-1,api-key-2
-MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
 MCP_ALLOWED_ORIGINS=https://chatgpt.com
+
+# Optional lockdown (when set, MCP path becomes /mcp/<token>)
+# MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
 
 # Optional worker knobs (safe defaults live in wrangler.jsonc)
 # MCP_ENABLED=true
