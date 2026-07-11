@@ -1,0 +1,21 @@
+src/coordinator.ts
+  s_f7fb8c760d418b::t_d6e9b36fa950e6 93-95,130-132,142-143,145
+tests/worker/coordinator.test.ts
+  s_f7fb8c760d418b::t_5894cb548ae277 75-83,184-225,317-351
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "e2d70e99416b187f10f0a48f4c2242495988dbe2",
+  "prompts": {},
+  "sessions": {
+    "s_f7fb8c760d418b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8a1a3b265a63ab2d",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
