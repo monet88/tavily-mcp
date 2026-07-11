@@ -1,0 +1,35 @@
+src/coordinator.ts
+  s_f7fb8c760d418b::t_579d35689c2e37 1-366
+src/worker.ts
+  s_f7fb8c760d418b::t_f4dc201b90bb69 1-8
+tests/worker/coordinator-entry.ts
+  s_f7fb8c760d418b::t_4d4f8562aa4ebc 1-7
+tests/worker/coordinator.test.ts
+  s_f7fb8c760d418b::t_f17a4e74674cf3 1-470
+tests/worker/tsconfig.json
+  s_f7fb8c760d418b::t_14f99c3fa7b6f7 1-9
+tsconfig.worker.json
+  s_f7fb8c760d418b::t_1c86c7cf946110 1-20
+vitest.worker.config.ts
+  s_f7fb8c760d418b::t_e890a5e03124df 1-10
+worker-configuration.d.ts
+  s_f7fb8c760d418b::t_d1e5689ba1c7f5 1-17
+wrangler.jsonc
+  s_f7fb8c760d418b::t_ae5b85470e0184 1-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "0e11237b587c88d336aa162729ae30afcbb221f4",
+  "prompts": {},
+  "sessions": {
+    "s_f7fb8c760d418b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8a1a3b265a63ab2d",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
