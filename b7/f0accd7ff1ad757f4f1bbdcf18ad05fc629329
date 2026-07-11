@@ -1,0 +1,21 @@
+src/config.ts
+  s_73e7a28c8e838d::t_a22d82ba31370e 1-198
+tests/unit/config.test.ts
+  s_73e7a28c8e838d::t_ca31ba077074fb 1-42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "b7f0accd7ff1ad757f4f1bbdcf18ad05fc629329",
+  "prompts": {},
+  "sessions": {
+    "s_73e7a28c8e838d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aa06bd2c7cd09f8b3",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
