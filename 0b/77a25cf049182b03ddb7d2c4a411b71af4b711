@@ -1,0 +1,21 @@
+src/key-pool.ts
+  s_3582f44597c22a::t_6ad00a4f569f3e 1-137
+tests/unit/key-pool.test.ts
+  s_3582f44597c22a::t_8a1637e9e4a73e 1-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "0b77a25cf049182b03ddb7d2c4a411b71af4b711",
+  "prompts": {},
+  "sessions": {
+    "s_3582f44597c22a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-acbfd9dc574999a6d",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
