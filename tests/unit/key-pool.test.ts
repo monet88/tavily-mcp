@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CoordinatedKeyPool,
   LocalKeyPool,
   fingerprintKey,
+  type AcquireDecision,
+  type AcquireInput,
+  type CoordinatorPort,
   type CredentialLease,
   type KeyPool,
+  type QuarantineInput,
 } from "../../src/key-pool.js";
 
 class FakeClock {
@@ -164,5 +169,102 @@ describe("LocalKeyPool", () => {
     expect(lease.mode).toBe("api-key");
     await pool.reportAuthFailure(lease.fingerprint);
     expect(await pool.resolve(lease.fingerprint)).not.toBeNull();
+  });
+});
+
+
+class FakeCoordinator implements CoordinatorPort {
+  public calls: AcquireInput[] = [];
+  public quarantines: QuarantineInput[] = [];
+  private cursor = 0;
+  private quarantineUntil = new Map<string, number>();
+  private decision: AcquireDecision | null = null;
+
+  force(decision: AcquireDecision): void {
+    this.decision = decision;
+  }
+
+  async acquireForTavily(input: AcquireInput): Promise<AcquireDecision> {
+    this.calls.push(input);
+    if (this.decision) return this.decision;
+    if (input.fingerprints.length === 0) {
+      return { allowed: false, code: "KEY_POOL_UNAVAILABLE" };
+    }
+    for (let offset = 0; offset < input.fingerprints.length; offset += 1) {
+      const index = (this.cursor + offset) % input.fingerprints.length;
+      const fingerprint = input.fingerprints[index]!;
+      const until = this.quarantineUntil.get(fingerprint);
+      if (until !== undefined && until > input.nowMs) continue;
+      this.cursor = (index + 1) % input.fingerprints.length;
+      return { allowed: true, fingerprint };
+    }
+    return { allowed: false, code: "KEY_POOL_UNAVAILABLE" };
+  }
+
+  async quarantine(input: QuarantineInput): Promise<void> {
+    this.quarantines.push(input);
+    this.quarantineUntil.set(input.fingerprint, input.untilMs);
+  }
+}
+
+describe("CoordinatedKeyPool", () => {
+  it("creates only with non-empty keys and never sends raw keys to coordinator", async () => {
+    const coordinator = new FakeCoordinator();
+    await expect(
+      CoordinatedKeyPool.create([], coordinator, {
+        quarantineMs: 1_000,
+        tavilyDailyCallLimit: 10,
+      }),
+    ).rejects.toThrow("KEY_POOL_NOT_CONFIGURED");
+
+    const pool = await CoordinatedKeyPool.create(["secret-a", "secret-b"], coordinator, {
+      quarantineMs: 1_000,
+      tavilyDailyCallLimit: 10,
+      now: () => 1_000,
+    });
+    const lease = await pool.acquire();
+    expect(lease.mode).toBe("api-key");
+    expect(apiKey(lease)).toBe("secret-a");
+    expect(coordinator.calls).toHaveLength(1);
+    const payload = JSON.stringify(coordinator.calls[0]);
+    expect(payload).not.toContain("secret-a");
+    expect(payload).not.toContain("secret-b");
+    expect(coordinator.calls[0]?.poolVersion).toBe(
+      (await fingerprintKey("secret-a")) + "|" + (await fingerprintKey("secret-b")),
+    );
+  });
+
+  it("maps coordinator denials to the same Error codes as LocalKeyPool", async () => {
+    const coordinator = new FakeCoordinator();
+    coordinator.force({ allowed: false, code: "DAILY_LIMIT_REACHED" });
+    const pool = await CoordinatedKeyPool.create(["a"], coordinator, {
+      quarantineMs: 1_000,
+      tavilyDailyCallLimit: 1,
+    });
+    await expect(pool.acquire()).rejects.toThrow("DAILY_LIMIT_REACHED");
+
+    coordinator.force({ allowed: false, code: "KEY_POOL_UNAVAILABLE" });
+    await expect(pool.acquire()).rejects.toThrow("KEY_POOL_UNAVAILABLE");
+  });
+
+  it("resolve is local and reportAuthFailure quarantines via coordinator", async () => {
+    const coordinator = new FakeCoordinator();
+    const pool = await CoordinatedKeyPool.create(["a", "b"], coordinator, {
+      quarantineMs: 5_000,
+      tavilyDailyCallLimit: 10,
+      now: () => 100,
+    });
+    const fpA = await fingerprintKey("a");
+    expect(await pool.resolve(fpA)).toEqual({
+      mode: "api-key",
+      key: "a",
+      fingerprint: fpA,
+    });
+    expect(await pool.resolve("missing")).toBeNull();
+
+    await pool.reportAuthFailure(fpA);
+    expect(coordinator.quarantines).toEqual([{ fingerprint: fpA, untilMs: 5_100 }]);
+    await pool.reportAuthFailure("missing");
+    expect(coordinator.quarantines).toHaveLength(1);
   });
 });

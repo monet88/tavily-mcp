@@ -135,3 +135,93 @@ export class LocalKeyPool implements KeyPool {
     return true;
   }
 }
+
+export type CoordinatedPoolCreateOptions = Partial<PoolOptions> & {
+  /** Required for acquireForTavily daily limit checks. */
+  tavilyDailyCallLimit: number;
+  clock?: { now(): number };
+};
+
+/**
+ * Worker-side pool: raw keys stay in isolate memory; only fingerprints go to the DO.
+ */
+export class CoordinatedKeyPool implements KeyPool {
+  private constructor(
+    private readonly entries: readonly KeyEntry[],
+    private readonly byFingerprint: ReadonlyMap<string, string>,
+    private readonly fingerprints: readonly string[],
+    private readonly poolVersion: string,
+    private readonly coordinator: CoordinatorPort,
+    private readonly now: () => number,
+    private readonly quarantineMs: number,
+    private readonly tavilyDailyCallLimit: number,
+  ) {}
+
+  static async create(
+    keys: string[],
+    coordinator: CoordinatorPort,
+    options: CoordinatedPoolCreateOptions,
+  ): Promise<CoordinatedKeyPool> {
+    if (keys.length === 0) {
+      throw new Error("KEY_POOL_NOT_CONFIGURED");
+    }
+    const entries: KeyEntry[] = [];
+    const byFingerprint = new Map<string, string>();
+    for (const key of keys) {
+      const fingerprint = await fingerprintKey(key);
+      entries.push({ key, fingerprint });
+      byFingerprint.set(fingerprint, key);
+    }
+    const fingerprints = entries.map(entry => entry.fingerprint);
+    const now =
+      options.now ??
+      (options.clock ? () => options.clock!.now() : () => Date.now());
+    return new CoordinatedKeyPool(
+      entries,
+      byFingerprint,
+      fingerprints,
+      fingerprints.join("|"),
+      coordinator,
+      now,
+      options.quarantineMs ?? DEFAULT_QUARANTINE_MS,
+      options.tavilyDailyCallLimit,
+    );
+  }
+
+  async acquire(): Promise<CredentialLease> {
+    const decision = await this.coordinator.acquireForTavily({
+      poolVersion: this.poolVersion,
+      fingerprints: [...this.fingerprints],
+      nowMs: this.now(),
+      tavilyDailyCallLimit: this.tavilyDailyCallLimit,
+    });
+    if (!decision.allowed) {
+      throw new Error(decision.code);
+    }
+    const key = this.byFingerprint.get(decision.fingerprint);
+    if (!key) {
+      // Pool drifted vs coordinator selection — treat as unavailable.
+      throw new Error("KEY_POOL_UNAVAILABLE");
+    }
+    return {
+      mode: "api-key",
+      key,
+      fingerprint: decision.fingerprint,
+    };
+  }
+
+  async resolve(fingerprint: string): Promise<CredentialLease | null> {
+    const key = this.byFingerprint.get(fingerprint);
+    if (!key) return null;
+    return { mode: "api-key", key, fingerprint };
+  }
+
+  async reportAuthFailure(fingerprint: string): Promise<void> {
+    if (!this.byFingerprint.has(fingerprint)) return;
+    await this.coordinator.quarantine({
+      fingerprint,
+      untilMs: this.now() + this.quarantineMs,
+    });
+  }
+}
+

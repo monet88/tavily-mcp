@@ -404,6 +404,12 @@ export class TavilyClient {
           "No healthy Tavily API key is currently available.",
         );
       }
+      if (message.includes("DAILY_LIMIT_REACHED")) {
+        throw new TavilyToolError(
+          "DAILY_LIMIT_REACHED",
+          "The daily Tavily call limit was reached.",
+        );
+      }
       throw error;
     }
 
