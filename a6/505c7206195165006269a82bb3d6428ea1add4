@@ -1,0 +1,23 @@
+.dev.vars.example
+  s_68e4e9ad1d2e54::t_47563481a1ecda 1-13
+README.md
+  s_68e4e9ad1d2e54::t_4f7dfc0c0ef73f 183-301
+smithery.yaml
+  s_68e4e9ad1d2e54::t_c5d3296ca77476 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "a6505c7206195165006269a82bb3d6428ea1add4",
+  "prompts": {},
+  "sessions": {
+    "s_68e4e9ad1d2e54": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-afda21ff5801746db",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
