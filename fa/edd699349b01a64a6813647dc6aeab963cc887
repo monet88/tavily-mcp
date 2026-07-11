@@ -1,0 +1,27 @@
+src/server.ts
+  s_2e514fb981ade6::t_88e58034311480 73
+src/tavily-client.ts
+  s_2e514fb981ade6::t_5a441e94075b52 45-46,51-55,62,155-170,197,203,210,217,224,230,495,498-500,502-507,509,511-519
+src/tool-handlers.ts
+  s_2e514fb981ade6::t_5565d5b875f911 2-9,312,314-332,538-548
+tests/unit/stdio-compatibility.test.ts
+  s_2e514fb981ade6::t_a3f974fcd96121 4,6-10,13,44-61,82-116,140-159,201,214,257,287-334,348,381-433
+tests/unit/tavily-client.test.ts
+  s_2e514fb981ade6::t_7ae673ebbefb9f 445,454-478
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "faedd699349b01a64a6813647dc6aeab963cc887",
+  "prompts": {},
+  "sessions": {
+    "s_2e514fb981ade6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7c1e3c3e69ab3eaf",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
