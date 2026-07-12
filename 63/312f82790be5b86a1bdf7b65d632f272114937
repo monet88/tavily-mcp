@@ -1,0 +1,31 @@
+src/config.ts
+  s_49af823d129100::t_fdc03c1d30131f 111-115
+src/index.ts
+  s_49af823d129100::t_3cbeee4c44b49c 86-88,90-91
+src/tool-handlers.ts
+  s_49af823d129100::t_d80cad9fb0c124 132-198,202,204-210,464,485,509,528,546,619
+src/worker.ts
+  s_49af823d129100::t_b2e012250fa16a 111-113,115
+tests/unit/config.test.ts
+  s_49af823d129100::t_9a3c3abced54dd 87-103
+tests/unit/tool-handlers-defaults.test.ts
+  s_49af823d129100::t_fee7db67df7dad 1-99
+tests/worker/worker.test.ts
+  s_49af823d129100::t_60ef7892effc9b 154-161
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "63312f82790be5b86a1bdf7b65d632f272114937",
+  "prompts": {},
+  "sessions": {
+    "s_49af823d129100": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb5a53e0-d207-4709-9dca-b6ea8cdf3b31",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
