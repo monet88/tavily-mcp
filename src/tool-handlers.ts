@@ -133,12 +133,8 @@ function applyDefaults(
   params: Record<string, unknown>,
   defaults: Record<string, unknown>,
 ): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...params };
-  for (const key of Object.keys(merged)) {
-    if (key in defaults) {
-      merged[key] = defaults[key];
-    }
-  }
+  // Env defaults first; explicit caller/schema values win.
+  const merged: Record<string, unknown> = { ...defaults, ...params };
   if ((merged.start_date || merged.end_date) && merged.time_range) {
     merged.time_range = undefined;
   }

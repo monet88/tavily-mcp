@@ -103,6 +103,28 @@ function textResponse(status: number, body: string, headers?: HeadersInit): Resp
   });
 }
 
+function corsHeaders(origin: string | null): Record<string, string> {
+  if (!origin) return {};
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Accept, Authorization, Mcp-Session-Id, X-Session-Id, X-Human-Id",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function withCors(response: Response, origin: string | null): Response {
+  if (!origin) return response;
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", origin);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function envMap(env: Env): EnvMap {
   // Worker bindings are string | objects; loadConfig only reads string vars.
   const out: EnvMap = {};
@@ -201,13 +223,20 @@ export async function handleWorkerRequest(
     return textResponse(404, "Not found");
   }
 
-  if (request.method !== "POST") {
-    return textResponse(405, "Method not allowed");
-  }
-
   const origin = request.headers.get("Origin");
   if (origin && !config.allowedOrigins.includes(origin)) {
     return textResponse(403, "Forbidden");
+  }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders(origin),
+    });
+  }
+
+  if (request.method !== "POST") {
+    return textResponse(405, "Method not allowed");
   }
 
   let parsedBody: unknown;
@@ -215,9 +244,18 @@ export async function handleWorkerRequest(
     parsedBody = await readBoundedJson(request, config.mcpMaxRequestBodyBytes);
   } catch (error: unknown) {
     if (error instanceof BodyTooLargeError) {
-      return textResponse(413, "Payload too large");
+      return withCors(textResponse(413, "Payload too large"), origin);
     }
-    return textResponse(400, "Bad request");
+    return withCors(textResponse(400, "Bad request"), origin);
+  }
+
+  // Reject clearly non-MCP payloads before spending shared MCP quota.
+  if (
+    parsedBody === null ||
+    typeof parsedBody !== "object" ||
+    Array.isArray(parsedBody)
+  ) {
+    return withCors(textResponse(400, "Bad request"), origin);
   }
 
   const stub = getCoordinatorStub(env);
@@ -230,7 +268,7 @@ export async function handleWorkerRequest(
 
   if (!decision.allowed) {
     if (decision.code === "SERVICE_DISABLED") {
-      return textResponse(503, "Service unavailable");
+      return withCors(textResponse(503, "Service unavailable"), origin);
     }
     const headers: Record<string, string> = {};
     if (decision.retryAfterSeconds !== undefined) {
@@ -239,7 +277,7 @@ export async function handleWorkerRequest(
       // ponytail: day-bucket retry; client can wait until next UTC day.
       headers["Retry-After"] = "86400";
     }
-    return textResponse(429, "Too many requests", headers);
+    return withCors(textResponse(429, "Too many requests", headers), origin);
   }
 
   const coordinatorPort: CoordinatorPort = {
@@ -283,7 +321,8 @@ export async function handleWorkerRequest(
   });
 
   await server.connect(transport);
-  return transport.handleRequest(request, { parsedBody });
+  const response = await transport.handleRequest(request, { parsedBody });
+  return withCors(response, origin);
 }
 
 export default {

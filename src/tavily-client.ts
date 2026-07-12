@@ -193,6 +193,7 @@ function parseRetryAfterSeconds(header: string | null): number | undefined {
 
 function mapHttpError(
   status: number,
+  path: string,
   retryAfterSeconds?: number,
   details?: unknown,
 ): TavilyToolError {
@@ -217,7 +218,8 @@ function mapHttpError(
       { details },
     );
   }
-  if (status === 404) {
+  // Only GET /research/:id uses 404 as "job missing".
+  if (status === 404 && path.startsWith("/research/")) {
     return new TavilyToolError(
       "RESEARCH_NOT_FOUND",
       "The research request was not found.",
@@ -522,7 +524,12 @@ export class TavilyClient {
           ? envelope.error.retry_after_seconds
           : undefined);
 
-      throw mapHttpError(response.status, retryAfterSeconds, envelope);
+      throw mapHttpError(
+        response.status,
+        spec.path,
+        retryAfterSeconds,
+        envelope,
+      );
     }
 
     let raw: unknown;

@@ -1,8 +1,9 @@
 TAVILY_API_KEY=api-key-1,api-key-2
 MCP_ALLOWED_ORIGINS=https://chatgpt.com
 
-# Required for Worker unless MCP_ALLOW_PUBLIC=true (base64url, >=32 random bytes)
-MCP_PATH_TOKEN=replace-with-at-least-32-random-bytes
+# Required for Worker unless MCP_ALLOW_PUBLIC=true.
+# Generate: openssl rand -base64 32 | tr '+/' '-_' | tr -d '='
+# MCP_PATH_TOKEN=
 
 # Demo only — serves public POST /mcp without a path token
 # MCP_ALLOW_PUBLIC=true

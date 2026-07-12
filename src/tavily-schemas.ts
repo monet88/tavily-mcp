@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-// Coerce provider timing (string|number) into a finite number.
+// Coerce provider timing (string|number|null) into a finite number.
 const FiniteNumber = z.preprocess((value: unknown) => {
+  if (value === null) return undefined;
   if (typeof value === "string" && value.trim() !== "") {
     const n = Number(value);
     return Number.isFinite(n) ? n : value;

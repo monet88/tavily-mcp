@@ -104,11 +104,10 @@ export async function runLegacyResearch(
       : MAX_PRO_MODEL_POLL_DURATION;
 
   let pollInterval = INITIAL_POLL_INTERVAL;
-  let totalElapsed = 0;
+  const deadline = Date.now() + maxPollDuration;
 
-  while (totalElapsed < maxPollDuration) {
+  while (Date.now() < deadline) {
     await sleep(pollInterval);
-    totalElapsed += pollInterval;
 
     try {
       const status = await options.client.researchGet(
@@ -161,19 +160,21 @@ async function researchViaStream(
   if (options.sessionId) headers["X-Session-Id"] = options.sessionId;
   if (options.humanId) headers["X-Human-Id"] = options.humanId;
 
+  let lease: Awaited<ReturnType<NonNullable<LegacyResearchOptions["keyPool"]>["acquire"]>> | null =
+    null;
   if (options.keyPool) {
     try {
-      const lease = await options.keyPool.acquire();
-      if (lease.mode === "api-key") {
-        headers.Authorization = `Bearer ${lease.key}`;
-      } else {
-        headers["X-Tavily-Access-Mode"] = "keyless";
-        headers["X-Client-Source"] = "tavily-mcp-keyless";
-      }
+      lease = await options.keyPool.acquire();
     } catch {
       return {
         error: `Research stream request failed: no healthy API key. Documentation: ${RESEARCH_DOCS_URL}`,
       };
+    }
+    if (lease.mode === "api-key") {
+      headers.Authorization = `Bearer ${lease.key}`;
+    } else {
+      headers["X-Tavily-Access-Mode"] = "keyless";
+      headers["X-Client-Source"] = "tavily-mcp-keyless";
     }
   }
 
@@ -206,6 +207,17 @@ async function researchViaStream(
   }
 
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      lease?.mode === "api-key" &&
+      options.keyPool
+    ) {
+      try {
+        await options.keyPool.reportAuthFailure(lease.fingerprint);
+      } catch {
+        // quarantine is best-effort
+      }
+    }
     let detail = "";
     try {
       detail = await response.text();

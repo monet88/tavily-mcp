@@ -48,7 +48,8 @@ describe("loadConfig", () => {
   });
 
   it("accepts a valid capability token for worker", () => {
-    const token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    // 32 decoded bytes with enough unique base64url characters.
+    const token = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
     const config = loadConfig(
       { TAVILY_API_KEY: "key-1", MCP_PATH_TOKEN: token },
       "worker",
@@ -62,5 +63,25 @@ describe("loadConfig", () => {
       TAVILY_API_KEY: "key-1",
       MCP_PATH_TOKEN: "too-short",
     }, "worker")).toThrow("MCP_PATH_TOKEN");
+
+    // Long enough, but only one unique character (no entropy).
+    expect(() => loadConfig({
+      TAVILY_API_KEY: "key-1",
+      MCP_PATH_TOKEN: "A".repeat(43),
+    }, "worker")).toThrow("MCP_PATH_TOKEN");
+  });
+
+  it("does not echo raw DEFAULT_PARAMETERS values in warnings", () => {
+    const warnings: string[] = [];
+    loadConfig(
+      {
+        DEFAULT_PARAMETERS: '"secret-looking-string"',
+      },
+      "stdio",
+      { warn: message => warnings.push(message) },
+    );
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain("not a valid JSON object");
+    expect(warnings[0]).not.toContain("secret-looking-string");
   });
 });

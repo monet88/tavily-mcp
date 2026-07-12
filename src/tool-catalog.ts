@@ -433,13 +433,13 @@ export function toolsForProfile(profile: RuntimeProfile) {
 /** Longer descriptions used by --list-tools for human-facing CLI help. */
 export const LIST_TOOLS_DESCRIPTIONS: Record<string, string> = {
   tavily_search:
-    "A real-time web search tool powered by Tavily's AI engine. Features include customizable search depth (basic/advanced/fast/ultra-fast), domain filtering, time-based filtering, and support for both general and news-specific searches. Returns comprehensive results with titles, URLs, content snippets, and optional image results.",
+    "A real-time web search tool powered by Tavily's AI engine. Features include customizable search depth (basic/advanced/fast/ultra-fast), domain filtering, and time-based filtering. Returns comprehensive results with titles, URLs, content snippets, and optional image results.",
   tavily_extract:
     "Extracts and processes content from specified URLs with advanced parsing capabilities. Supports both basic and advanced extraction modes, with the latter providing enhanced data retrieval including tables and embedded content. Ideal for data collection, content analysis, and research tasks.",
   tavily_crawl:
-    "A sophisticated web crawler that systematically explores websites starting from a base URL. Features include configurable depth and breadth limits, domain filtering, path pattern matching, and category-based filtering. Perfect for comprehensive site analysis, content discovery, and structured data collection.",
+    "A sophisticated web crawler that systematically explores websites starting from a base URL. Features include configurable depth and breadth limits, domain filtering, and path pattern matching. Perfect for comprehensive site analysis, content discovery, and structured data collection.",
   tavily_map:
-    "Creates detailed site maps by analyzing website structure and navigation paths. Offers configurable exploration depth, domain restrictions, and category filtering. Ideal for site audits, content organization analysis, and understanding website architecture and navigation patterns.",
+    "Creates detailed site maps by analyzing website structure and navigation paths. Offers configurable exploration depth and domain restrictions. Ideal for site audits, content organization analysis, and understanding website architecture and navigation patterns.",
   tavily_research:
     "Performs comprehensive research on any topic or question by gathering information from multiple sources. Supports different research depths ('mini' for narrow tasks, 'pro' for broad research, 'auto' for automatic selection). Ideal for in-depth analysis, report generation, and answering complex questions requiring synthesis of multiple sources.",
   tavily_research_start:

@@ -70,6 +70,7 @@ export async function prepareKeyMaterial(keys: string[]): Promise<PreparedKeyMat
   const byFingerprint = new Map<string, string>();
   for (const key of keys) {
     const fingerprint = await fingerprintKey(key);
+    if (byFingerprint.has(fingerprint)) continue;
     entries.push({ key, fingerprint });
     byFingerprint.set(fingerprint, key);
   }
@@ -98,8 +99,12 @@ export class LocalKeyPool implements KeyPool {
     options: LocalPoolCreateOptions = {},
   ): Promise<LocalKeyPool> {
     const entries: KeyEntry[] = [];
+    const seen = new Set<string>();
     for (const key of keys) {
-      entries.push({ key, fingerprint: await fingerprintKey(key) });
+      const fingerprint = await fingerprintKey(key);
+      if (seen.has(fingerprint)) continue;
+      seen.add(fingerprint);
+      entries.push({ key, fingerprint });
     }
     const now =
       options.now ??

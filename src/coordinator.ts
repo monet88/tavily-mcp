@@ -310,9 +310,15 @@ export class TavilyCoordinator extends DurableObject {
   }
 
   private maxResearchJobs(): number {
-    const raw = (this.env as Cloudflare.Env).MAX_RESEARCH_JOBS;
-    const n = raw ? Number(raw) : DEFAULT_MAX_RESEARCH_JOBS;
-    return Number.isFinite(n) && n > 0 ? n : DEFAULT_MAX_RESEARCH_JOBS;
+    const raw = (this.env as Cloudflare.Env).MAX_RESEARCH_JOBS as
+      | string
+      | undefined;
+    if (raw === undefined || raw === "") return DEFAULT_MAX_RESEARCH_JOBS;
+    const text = String(raw);
+    // Reject scientific notation / decimals so "1e100" cannot unbounded the cap.
+    if (!/^\d+$/.test(text)) return DEFAULT_MAX_RESEARCH_JOBS;
+    const n = Number(text);
+    return Number.isSafeInteger(n) && n > 0 ? n : DEFAULT_MAX_RESEARCH_JOBS;
   }
 
   private counterKey(kind: CounterKind, bucket: string): string {
@@ -376,16 +382,15 @@ export class TavilyCoordinator extends DurableObject {
   }
 
   private pruneQuarantines(keep: Set<string>): void {
-    const rows = this.ctx.storage.sql
-      .exec<{ fingerprint: string }>("SELECT fingerprint FROM quarantines")
-      .toArray();
-    for (const row of rows) {
-      if (!keep.has(row.fingerprint)) {
-        this.ctx.storage.sql.exec(
-          "DELETE FROM quarantines WHERE fingerprint = ?",
-          row.fingerprint,
-        );
-      }
+    if (keep.size === 0) {
+      this.ctx.storage.sql.exec("DELETE FROM quarantines");
+      return;
     }
+    const fingerprints = Array.from(keep);
+    const placeholders = fingerprints.map(() => "?").join(",");
+    this.ctx.storage.sql.exec(
+      `DELETE FROM quarantines WHERE fingerprint NOT IN (${placeholders})`,
+      ...fingerprints,
+    );
   }
 }

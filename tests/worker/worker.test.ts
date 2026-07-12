@@ -134,6 +134,33 @@ describe("Worker routes", () => {
     expect(del.status).toBe(405);
   });
 
+  it("handles CORS preflight and echoes Access-Control-Allow-Origin on POST", async () => {
+    const preflight = await workerFetch(
+      new Request(MCP_URL, {
+        method: "OPTIONS",
+        headers: {
+          Origin: "https://chatgpt.com",
+          "Access-Control-Request-Method": "POST",
+        },
+      }),
+    );
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://chatgpt.com",
+    );
+    expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain(
+      "POST",
+    );
+
+    const post = await workerFetch(
+      mcpPost(initializeBody, { origin: "https://chatgpt.com" }),
+    );
+    expect(post.status).toBe(200);
+    expect(post.headers.get("Access-Control-Allow-Origin")).toBe(
+      "https://chatgpt.com",
+    );
+  });
+
   it("enforces Origin allowlist; missing Origin and exact match pass", async () => {
     const blocked = await workerFetch(
       mcpPost(initializeBody, { origin: "https://evil.example" }),
@@ -373,7 +400,7 @@ describe("Worker routes", () => {
   });
 
   it("MCP_PATH_TOKEN gates the path when set (overrides public mode)", async () => {
-    const token = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const token = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8";
     const response = await handleWorkerRequest(mcpPost(initializeBody), {
       ...env,
       TAVILY_API_KEY: "tvly-test-key-1",

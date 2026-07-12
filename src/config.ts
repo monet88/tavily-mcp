@@ -99,7 +99,12 @@ function parseDefaultParameters(
   try {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
-      logger.warn(`DEFAULT_PARAMETERS is not a valid JSON object: ${raw}`);
+      // Never echo the raw env value — it may accidentally hold a secret.
+      logger.warn(
+        `DEFAULT_PARAMETERS is not a valid JSON object (type: ${
+          Array.isArray(parsed) ? "array" : parsed === null ? "null" : typeof parsed
+        })`,
+      );
       return {};
     }
     return parsed as Record<string, unknown>;
@@ -116,8 +121,10 @@ function parseAllowedOrigins(raw: string | undefined): string[] {
 }
 
 function isValidPathToken(token: string): boolean {
-  // Require base64url alphabet and enough decoded entropy (≥ 32 bytes / 128 bits).
+  // Require base64url alphabet, decoded length ≥ 32 bytes, and not trivially weak.
+  // Operator must still generate from a CSPRNG; this only rejects obvious placeholders.
   if (!/^[A-Za-z0-9_-]+$/.test(token)) return false;
+  if (new Set(token).size < 8) return false;
   const padded = token + "=".repeat((4 - (token.length % 4)) % 4);
   const b64 = padded.replace(/-/g, "+").replace(/_/g, "/");
   try {

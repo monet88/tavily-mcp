@@ -14,6 +14,9 @@
   "files": [
     "build"
   ],
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.node.json && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
