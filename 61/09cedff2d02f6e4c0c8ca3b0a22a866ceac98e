@@ -1,0 +1,19 @@
+wrangler.jsonc
+  s_49af823d129100::t_a19b703be36c34 16-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "6109cedff2d02f6e4c0c8ca3b0a22a866ceac98e",
+  "prompts": {},
+  "sessions": {
+    "s_49af823d129100": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb5a53e0-d207-4709-9dca-b6ea8cdf3b31",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
