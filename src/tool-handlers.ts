@@ -129,12 +129,85 @@ export type HandlerResult<T extends Record<string, unknown>> =
   | HandlerSuccess<T>
   | HandlerFailure;
 
+/**
+ * Per-tool allowlists for DEFAULT_PARAMETERS force-overrides.
+ *
+ * DEFAULT_PARAMETERS is one shared JSON blob. Without scoping, Search-only
+ * keys (e.g. search_depth) would leak into Extract/Crawl/Map and can trip
+ * upstream validation. Legacy CLI only overwrote keys on the endpoint
+ * payload object; these sets mirror each tool's supported input fields.
+ */
+const SEARCH_DEFAULT_KEYS = [
+  "query",
+  "search_depth",
+  "topic",
+  "time_range",
+  "start_date",
+  "end_date",
+  "max_results",
+  "include_images",
+  "include_image_descriptions",
+  "include_raw_content",
+  "include_domains",
+  "exclude_domains",
+  "country",
+  "include_favicon",
+  "exact_match",
+] as const;
+
+const EXTRACT_DEFAULT_KEYS = [
+  "urls",
+  "extract_depth",
+  "include_images",
+  "format",
+  "include_favicon",
+  "query",
+] as const;
+
+const CRAWL_DEFAULT_KEYS = [
+  "url",
+  "max_depth",
+  "max_breadth",
+  "limit",
+  "instructions",
+  "select_paths",
+  "select_domains",
+  "allow_external",
+  "extract_depth",
+  "format",
+  "include_favicon",
+  "chunks_per_source",
+] as const;
+
+const MAP_DEFAULT_KEYS = [
+  "url",
+  "max_depth",
+  "max_breadth",
+  "limit",
+  "instructions",
+  "select_paths",
+  "select_domains",
+  "allow_external",
+] as const;
+
+const RESEARCH_DEFAULT_KEYS = ["input", "model"] as const;
+
+/**
+ * Apply DEFAULT_PARAMETERS as a force override for keys supported by the
+ * current tool. Defaults win over caller args (legacy + README).
+ */
 function applyDefaults(
   params: Record<string, unknown>,
   defaults: Record<string, unknown>,
+  allowedKeys: readonly string[],
 ): Record<string, unknown> {
-  // Env defaults first; explicit caller/schema values win.
-  const merged: Record<string, unknown> = { ...defaults, ...params };
+  const overrides: Record<string, unknown> = {};
+  for (const key of allowedKeys) {
+    if (Object.prototype.hasOwnProperty.call(defaults, key)) {
+      overrides[key] = defaults[key];
+    }
+  }
+  const merged: Record<string, unknown> = { ...params, ...overrides };
   if ((merged.start_date || merged.end_date) && merged.time_range) {
     merged.time_range = undefined;
   }
@@ -388,7 +461,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
   ): Promise<HandlerResult<SearchOutput & Record<string, unknown>>> {
     try {
       const params = cleanParams(
-        applyDefaults({ ...raw }, defaults),
+        applyDefaults({ ...raw }, defaults, SEARCH_DEFAULT_KEYS),
       ) as unknown as SearchInput;
       if (params.country) {
         params.topic = "general";
@@ -409,7 +482,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
   ): Promise<HandlerResult<ExtractOutput & Record<string, unknown>>> {
     try {
       const params = cleanParams(
-        applyDefaults({ ...raw }, defaults),
+        applyDefaults({ ...raw }, defaults, EXTRACT_DEFAULT_KEYS),
       ) as unknown as ExtractInput;
       const data = await deps.client.extract(params);
       return {
@@ -433,6 +506,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
             chunks_per_source: 3,
           },
           defaults,
+          CRAWL_DEFAULT_KEYS,
         ),
       ) as unknown as CrawlInput;
       const data = await deps.client.crawl(params);
@@ -451,7 +525,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
   ): Promise<HandlerResult<MapOutput & Record<string, unknown>>> {
     try {
       const params = cleanParams(
-        applyDefaults({ ...raw }, defaults),
+        applyDefaults({ ...raw }, defaults, MAP_DEFAULT_KEYS),
       ) as unknown as MapInput;
       const data = await deps.client.map(params);
       return {
@@ -469,7 +543,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
   ): Promise<HandlerResult<ResearchStartOutput & Record<string, unknown>>> {
     try {
       const params = cleanParams(
-        applyDefaults({ ...raw }, defaults),
+        applyDefaults({ ...raw }, defaults, RESEARCH_DEFAULT_KEYS),
       ) as unknown as ResearchStartInput;
       const { result, credentialFingerprint } =
         await deps.client.researchStart(params);
@@ -542,7 +616,7 @@ export function createToolHandlers(deps: ToolHandlerDeps) {
   ): Promise<HandlerResult<ResearchSyncOutput & Record<string, unknown>>> {
     try {
       const params = cleanParams(
-        applyDefaults({ ...raw }, defaults),
+        applyDefaults({ ...raw }, defaults, RESEARCH_DEFAULT_KEYS),
       ) as unknown as ResearchStartInput;
       const result = await runLegacyResearch({
         client: deps.client,

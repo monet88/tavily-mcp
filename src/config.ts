@@ -108,9 +108,11 @@ function parseDefaultParameters(
       return {};
     }
     return parsed as Record<string, unknown>;
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    logger.warn(`Failed to parse DEFAULT_PARAMETERS as JSON: ${message}`);
+  } catch {
+    // Never log error.message — V8 JSON.parse syntax errors embed the
+    // offending token/excerpt, so a misplaced secret in DEFAULT_PARAMETERS
+    // would otherwise leak into logs.
+    logger.warn("Failed to parse DEFAULT_PARAMETERS as JSON: invalid syntax");
     return {};
   }
 }

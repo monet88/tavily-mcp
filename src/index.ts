@@ -83,7 +83,12 @@ async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
+  // Guard against concurrent SIGINT+SIGTERM (or repeated signals) racing
+  // through server.close() while the first shutdown is still pending.
+  let shuttingDown = false;
   const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
     try {
       await server.close();
     } finally {

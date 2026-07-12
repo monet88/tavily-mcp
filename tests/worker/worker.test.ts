@@ -151,6 +151,14 @@ describe("Worker routes", () => {
     expect(preflight.headers.get("Access-Control-Allow-Methods")).toContain(
       "POST",
     );
+    const allowHeaders =
+      preflight.headers.get("Access-Control-Allow-Headers") ?? "";
+    // Browser MCP clients (ChatGPT) send MCP-Protocol-Version on every POST;
+    // preflight must allow it or the real tools/list|call is blocked.
+    expect(allowHeaders.toLowerCase()).toContain("mcp-protocol-version");
+    expect(allowHeaders.toLowerCase()).toContain("mcp-session-id");
+    expect(allowHeaders.toLowerCase()).toContain("mcp-method");
+    expect(allowHeaders.toLowerCase()).toContain("mcp-name");
 
     const post = await workerFetch(
       mcpPost(initializeBody, { origin: "https://chatgpt.com" }),

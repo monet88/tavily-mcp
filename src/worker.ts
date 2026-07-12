@@ -108,8 +108,11 @@ function corsHeaders(origin: string | null): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
+    // MCP Streamable HTTP requires MCP-Protocol-Version on every POST; browsers
+    // mirror custom request headers, so preflight must allow them or ChatGPT
+    // (and other browser MCP clients) will block tools/list and tools/call.
     "Access-Control-Allow-Headers":
-      "Content-Type, Accept, Authorization, Mcp-Session-Id, X-Session-Id, X-Human-Id",
+      "Content-Type, Accept, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, X-Session-Id, X-Human-Id",
     "Access-Control-Max-Age": "86400",
   };
 }

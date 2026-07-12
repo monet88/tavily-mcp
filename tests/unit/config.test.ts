@@ -84,4 +84,21 @@ describe("loadConfig", () => {
     expect(warnings[0]).toContain("not a valid JSON object");
     expect(warnings[0]).not.toContain("secret-looking-string");
   });
+
+  it("does not leak malformed DEFAULT_PARAMETERS through JSON.parse error messages", () => {
+    const warnings: string[] = [];
+    const secretish = 'Bearer abc-secret-token-xyz';
+    loadConfig(
+      {
+        DEFAULT_PARAMETERS: secretish,
+      },
+      "stdio",
+      { warn: message => warnings.push(message) },
+    );
+    expect(warnings.length).toBe(1);
+    expect(warnings[0]).toContain("invalid syntax");
+    expect(warnings[0]).not.toContain(secretish);
+    expect(warnings[0]).not.toContain("Bearer");
+    expect(warnings[0]).not.toContain("abc-secret-token-xyz");
+  });
 });
