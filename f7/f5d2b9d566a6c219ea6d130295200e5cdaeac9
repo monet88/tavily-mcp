@@ -1,0 +1,45 @@
+.dev.vars.example
+  s_bd3d60e89bfab3::t_00a2ef44582b6e 4-6
+package.json
+  s_bd3d60e89bfab3::t_9e5523799a8e2e 17-19
+src/config.ts
+  s_bd3d60e89bfab3::t_a2eea928ca0883 102-107,124-125,127
+src/coordinator.ts
+  s_bd3d60e89bfab3::t_ce9a125803d9b6 313-321,385-387,389-394
+src/index.ts
+  s_bd3d60e89bfab3::t_a2c0e2368ca48f 85-99
+src/key-pool.ts
+  s_bd3d60e89bfab3::t_7b488bf141c53c 73,102,104-107
+src/legacy-research.ts
+  s_bd3d60e89bfab3::t_5d994213f46f32 107,109,163-164,167,173-178,210-220
+src/tavily-client.ts
+  s_bd3d60e89bfab3::t_498d237d4fcc38 196,221-222,527-532
+src/tavily-schemas.ts
+  s_bd3d60e89bfab3::t_143ceac6598869 3,5
+src/tool-catalog.ts
+  s_bd3d60e89bfab3::t_7dcd65ec71a296 436,440,442
+src/tool-handlers.ts
+  s_bd3d60e89bfab3::t_c98f3664e7a103 136-137
+src/worker.ts
+  s_bd3d60e89bfab3::t_a35f16bd9406bd 106-127,231-241,247,249-258,271,280,324-325
+tests/unit/config.test.ts
+  s_bd3d60e89bfab3::t_7f7b319e3ecb2c 51-52,66-85
+tests/worker/worker.test.ts
+  s_bd3d60e89bfab3::t_5e30e6caf4c73c 137-163,403
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "f7f5d2b9d566a6c219ea6d130295200e5cdaeac9",
+  "prompts": {},
+  "sessions": {
+    "s_bd3d60e89bfab3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "989cc3f7-807e-4327-b6d1-f302532259da",
+        "model": "unknown"
+      },
+      "human_author": "monet88 <minhthang421992@gmail.com>"
+    }
+  }
+}
